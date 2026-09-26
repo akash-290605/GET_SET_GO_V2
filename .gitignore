@@ -46,8 +46,3 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
-
-# Build artifacts
-*.apk
-*.aab
-GET_SET_GO.apk
