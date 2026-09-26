@@ -17,6 +17,9 @@ concurrency:
 jobs:
   # JOB 1: Ultra-Fast Web Build & Deploy to GitHub Pages (Takes ~60-90s)
   deploy-web:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Code
