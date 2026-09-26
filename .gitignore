@@ -46,3 +46,9 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Binary APKs and bundles
+*.apk
+*.aab
+GET_SET_GO.apk
+

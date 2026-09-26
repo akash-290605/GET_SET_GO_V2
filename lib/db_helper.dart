@@ -115,7 +115,9 @@ class DBHelper {
         item TEXT NOT NULL,
         category TEXT NOT NULL,
         amount REAL NOT NULL,
-        date TEXT NOT NULL
+        date TEXT NOT NULL,
+        isCredit INTEGER DEFAULT 0,
+        partyName TEXT DEFAULT ''
       )
     ''');
     await db.execute('''
@@ -164,6 +166,8 @@ class DBHelper {
     if (db == null) return List.from(_inMemoryGoals);
     return await db.query('goals');
   }
+
+  Future<List<Map<String, dynamic>>> getGoals() => fetchGoals();
 
   Future<void> updateGoal(String id, int streak, String? lastDate) async {
     final db = await database;
@@ -225,6 +229,8 @@ class DBHelper {
     return await db.query('deleted_goals', orderBy: 'deletedAt DESC');
   }
 
+  Future<List<Map<String, dynamic>>> getDeletedGoals() => fetchDeletedGoals();
+
   // --- EXPENSES CRUD ---
   Future<void> insertExpense(Map<String, dynamic> expense) async {
     final db = await database;
@@ -233,13 +239,17 @@ class DBHelper {
       return;
     }
     await db.insert('expenses', expense);
-   }
+  }
+
+  Future<void> addExpense(Map<String, dynamic> expense) => insertExpense(expense);
 
   Future<List<Map<String, dynamic>>> fetchExpenses() async {
     final db = await database;
     if (db == null) return List.from(_inMemoryExpenses);
     return await db.query('expenses', orderBy: 'date DESC');
   }
+
+  Future<List<Map<String, dynamic>>> getExpenses() => fetchExpenses();
 
   Future<void> deleteExpense(int id) async {
     final db = await database;
@@ -266,6 +276,9 @@ class DBHelper {
     return await db.query('study_logs', orderBy: 'date DESC');
   }
 
+  Future<List<Map<String, dynamic>>> getStudyLogs() => fetchStudyLogs();
+  Future<void> addStudyLog(Map<String, dynamic> log) => insertStudyLog(log);
+
   Future<void> deleteStudyLog(int id) async {
     final db = await database;
     if (db == null) {
@@ -287,11 +300,15 @@ class DBHelper {
     return await db.insert('food_logs', log);
   }
 
+  Future<int> addFoodLog(Map<String, dynamic> log) => insertFoodLog(log);
+
   Future<List<Map<String, dynamic>>> fetchFoodLogs() async {
     final db = await database;
     if (db == null) return List.from(_inMemoryFood);
     return await db.query('food_logs', orderBy: 'id DESC');
   }
+
+  Future<List<Map<String, dynamic>>> getFoodLogs() => fetchFoodLogs();
 
   Future<void> deleteFoodLog(int id) async {
     final db = await database;

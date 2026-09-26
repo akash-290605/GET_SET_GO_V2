@@ -10,16 +10,39 @@ import 'package:path/path.dart' as p;
 import 'db_helper.dart';
 import 'notification_service.dart';
 import 'package:timezone/data/latest.dart' as tz;
+import 'services/auth_service.dart';
+import 'services/gemini_service.dart';
+import 'services/cloud_sync_service.dart';
+import 'screens/auth_screen.dart';
+import 'screens/ai_coach_screen.dart';
+import 'screens/expense_screen.dart';
+import 'screens/workout_screen.dart';
+import 'widgets/account_cloud_modal.dart';
+import 'widgets/titan_ai_sheet.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  tz.initializeTimeZones();
+  try {
+    tz.initializeTimeZones();
+  } catch (_) {}
+  try {
+    await AuthService.instance.init();
+  } catch (_) {}
+  try {
+    await GeminiService.instance.init();
+  } catch (_) {}
+  try {
+    await CloudSyncService.instance.init();
+  } catch (_) {}
   if (!kIsWeb) {
-    await NotificationService.instance.init();
-    await NotificationService.instance.scheduleDailyAlarms();
+    try {
+      await NotificationService.instance.init();
+      await NotificationService.instance.scheduleDailyAlarms();
+    } catch (_) {}
   }
   runApp(const GetSetGoApp());
 }
+
 
 // ---------------- DESIGN SYSTEM & COLOR PALETTE ----------------
 class AppColors {
@@ -323,11 +346,34 @@ class MotivationEngine {
   }
 }
 
-class GetSetGoApp extends StatelessWidget {
+class GetSetGoApp extends StatefulWidget {
   const GetSetGoApp({super.key});
 
   @override
+  State<GetSetGoApp> createState() => _GetSetGoAppState();
+}
+
+class _GetSetGoAppState extends State<GetSetGoApp> {
+  @override
+  void initState() {
+    super.initState();
+    AuthService.instance.addListener(_onAuthChanged);
+  }
+
+  @override
+  void dispose() {
+    AuthService.instance.removeListener(_onAuthChanged);
+    super.dispose();
+  }
+
+  void _onAuthChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final bool isLoggedIn = AuthService.instance.isLoggedIn;
+
     return MaterialApp(
       title: 'GET SET GO',
       debugShowCheckedModeBanner: false,
@@ -397,7 +443,13 @@ class GetSetGoApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const MainNavigationShell(),
+      home: isLoggedIn
+          ? const MainNavigationShell()
+          : AuthScreen(
+              onAuthenticated: () {
+                if (mounted) setState(() {});
+              },
+            ),
     );
   }
 }
@@ -1012,9 +1064,11 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   final List<Widget> _screens = [
     const MasterDashboardScreen(),
+    const AiCoachScreen(),
+    const ExpenseScreen(),
+    const WorkoutScreen(),
     const DailyLogScreen(),
     const FoodAndSnacksScreen(),
-    const ExpenseTrackerScreen(),
     const StrictGoalsScreen(),
     const WorkoutAndPhotosScreen(),
     const StudyAndEnglishScreen(),
@@ -1023,9 +1077,11 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   final List<String> _screenTitles = [
     'Dashboard',
+    'Titan AI Coach',
+    'Finance & Expenses',
+    '7-Day Gym Splits',
     'Routine & Recharge',
     'Nutrition & Food',
-    'Expense Tracker',
     'Strict Goals',
     'Workout & Photos',
     'Study & English',
@@ -1034,24 +1090,28 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   final List<IconData> _screenIcons = [
     Icons.speed_rounded,
+    Icons.auto_awesome_rounded,
+    Icons.account_balance_wallet_rounded,
+    Icons.fitness_center_rounded,
     Icons.wb_sunny_rounded,
     Icons.restaurant_menu_rounded,
-    Icons.account_balance_wallet_rounded,
     Icons.flag_rounded,
-    Icons.fitness_center_rounded,
+    Icons.camera_alt_rounded,
     Icons.psychology_rounded,
     Icons.assessment_rounded,
   ];
 
   final List<Color> _screenColors = [
     AppColors.secondary,
+    AppColors.primary,
+    AppColors.accentRose,
+    AppColors.accentBlue,
     AppColors.accentAmber,
     AppColors.accentGreen,
-    AppColors.accentRose,
-    AppColors.primary,
-    AppColors.accentBlue,
+    AppColors.primaryGlow,
     AppColors.accentPurple,
     AppColors.secondaryGlow,
+    const Color(0xFF38BDF8),
   ];
 
   void _openNavigationMenu(BuildContext context) {
@@ -1062,9 +1122,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
       builder: (ctx) {
         return DraggableScrollableSheet(
-          initialChildSize: 0.72,
+          initialChildSize: 0.78,
           minChildSize: 0.45,
-          maxChildSize: 0.92,
+          maxChildSize: 0.95,
           expand: false,
           builder: (context, scrollController) {
             return Container(
@@ -1228,7 +1288,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   Widget _buildTopBrandingHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.surface.withValues(alpha: 0.85),
         border: const Border(bottom: BorderSide(color: AppColors.borderLight, width: 1)),
@@ -1248,8 +1308,8 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
               children: [
                 // OFFICIAL GET SET GO LOGO EMBLEM
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 40,
+                  height: 40,
                   padding: const EdgeInsets.all(2.5),
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -1275,7 +1335,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Flexible(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1284,9 +1344,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                       const Text(
                         'GET SET GO',
                         style: TextStyle(
-                          fontSize: 15.5,
+                          fontSize: 15,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 1.8,
+                          letterSpacing: 1.6,
                           color: Colors.white,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -1330,30 +1390,66 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: HealthState.bmiColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: HealthState.bmiColor.withValues(alpha: 0.4), width: 1.2),
-              boxShadow: [
-                BoxShadow(
-                  color: HealthState.bmiColor.withValues(alpha: 0.1),
-                  blurRadius: 8,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // TITAN AI QUICK BUTTON
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                tooltip: 'Titan Gemini AI Coach',
+                icon: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.primaryGlow.withValues(alpha: 0.5)),
+                  ),
+                  child: const Icon(Icons.auto_awesome_rounded, size: 16, color: AppColors.primaryGlow),
                 ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.monitor_weight_rounded, size: 14, color: HealthState.bmiColor),
-                const SizedBox(width: 6),
-                Text(
-                  HealthState.bmi > 0 ? 'BMI ${HealthState.bmi.toStringAsFixed(1)}' : 'BMI --',
-                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: HealthState.bmiColor),
+                onPressed: () => TitanAiSheet.show(context),
+              ),
+              const SizedBox(width: 8),
+
+              // FIREBASE CLOUD & PROFILE BUTTON
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                tooltip: 'Account & Firebase Cloud Sync',
+                icon: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondary.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.secondary.withValues(alpha: 0.5)),
+                  ),
+                  child: const Icon(Icons.cloud_sync_rounded, size: 16, color: AppColors.secondary),
                 ),
-              ],
-            ),
+                onPressed: () => AccountCloudModal.show(context),
+              ),
+              const SizedBox(width: 8),
+
+              // BMI INDICATOR
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: HealthState.bmiColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: HealthState.bmiColor.withValues(alpha: 0.4), width: 1.2),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.monitor_weight_rounded, size: 13, color: HealthState.bmiColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      HealthState.bmi > 0 ? 'BMI ${HealthState.bmi.toStringAsFixed(1)}' : 'BMI --',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: HealthState.bmiColor),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
