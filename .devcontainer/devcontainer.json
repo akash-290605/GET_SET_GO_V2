@@ -1,16 +1,17 @@
 {
-  "name": "Flutter GET SET GO Codespace",
-  "image": "ghcr.io/cirruslabs/flutter:stable",
+  "name": "Flutter GET SET GO",
+  "image": "mcr.microsoft.com/devcontainers/universal:latest",
+  "features": {
+    "ghcr.io/devcontainers-contrib/features/flutter:2": {
+      "version": "latest"
+    }
+  },
   "customizations": {
     "vscode": {
       "extensions": [
         "Dart-Code.dart-code",
         "Dart-Code.flutter"
-      ],
-      "settings": {
-        "dart.flutterSdkPath": "/sdks/flutter",
-        "terminal.integrated.defaultProfile.linux": "bash"
-      }
+      ]
     }
   },
   "forwardPorts": [8080],
@@ -20,5 +21,5 @@
       "onAutoForward": "openPreview"
     }
   },
-  "postCreateCommand": "flutter pub get"
+  "postCreateCommand": "flutter doctor && flutter pub get"
 }

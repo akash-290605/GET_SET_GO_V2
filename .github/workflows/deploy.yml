@@ -1,0 +1,79 @@
+name: Fast Web Deploy & Android Build
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  # JOB 1: Ultra-Fast Web Build & Deploy to GitHub Pages (Takes ~60-90s)
+  deploy-web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 💙 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: 📦 Get Dependencies
+        run: flutter pub get
+
+      - name: 🌐 Build Flutter Web
+        run: flutter build web --release --base-href "/GET_SET_GO/"
+
+      - name: 🚀 Setup GitHub Pages
+        uses: actions/configure-pages@v4
+
+      - name: 📦 Upload Web Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+      - name: 🌍 Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # JOB 2: Android APK Build in Parallel
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: ☕ Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: 💙 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: 📦 Get Dependencies
+        run: flutter pub get
+
+      - name: 📱 Build Android APK
+        run: flutter build apk --debug
+
+      - name: 📤 Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GET_SET_GO-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
