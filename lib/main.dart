@@ -10,18 +10,9 @@ import 'package:path/path.dart' as p;
 import 'db_helper.dart';
 import 'notification_service.dart';
 import 'package:timezone/data/latest.dart' as tz;
-import 'services/gemini_service.dart';
-import 'services/auth_service.dart';
-import 'services/cloud_sync_service.dart';
-import 'models/workout_template_models.dart';
-import 'widgets/titan_ai_sheet.dart';
-import 'widgets/account_cloud_modal.dart';
-import 'screens/workout_screen.dart' as ws;
-import 'screens/expense_screen.dart' as es;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await AuthService.instance.init();
   tz.initializeTimeZones();
   if (!kIsWeb) {
     await NotificationService.instance.init();
@@ -1023,9 +1014,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     const MasterDashboardScreen(),
     const DailyLogScreen(),
     const FoodAndSnacksScreen(),
-    const es.ExpenseTrackerScreen(),
+    const ExpenseTrackerScreen(),
     const StrictGoalsScreen(),
-    const ws.WorkoutAndPhotosScreen(),
+    const WorkoutAndPhotosScreen(),
     const StudyAndEnglishScreen(),
     const MonthlyReportScreen(),
   ];
@@ -1036,7 +1027,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     'Nutrition & Food',
     'Expense Tracker',
     'Strict Goals',
-    'Gym & Splits',
+    'Workout & Photos',
     'Study & English',
     'Reports Hub',
   ];
@@ -1174,90 +1165,6 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   @override
   Widget build(BuildContext context) {
-    final isWideScreen = MediaQuery.of(context).size.width >= 768;
-
-    if (isWideScreen) {
-      return Scaffold(
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF070B14), Color(0xFF0D1424), Color(0xFF090D1A)],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
-          ),
-          child: SafeArea(
-            child: Row(
-              children: [
-                // Web & Desktop Navigation Rail Sidebar
-                NavigationRail(
-                  backgroundColor: AppColors.surface.withValues(alpha: 0.95),
-                  selectedIndex: _currentIndex,
-                  onDestinationSelected: (index) {
-                    setState(() => _currentIndex = index);
-                    AppSyncBus.notifyDataChanged();
-                  },
-                  leading: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12.0),
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          padding: const EdgeInsets.all(2.5),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.secondary.withValues(alpha: 0.6), width: 1.5),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(9),
-                            child: Image.asset(
-                              'assets/images/app_logo.png',
-                              fit: BoxFit.contain,
-                              errorBuilder: (context, error, stackTrace) => const Icon(Icons.rocket_launch_rounded, color: AppColors.secondary, size: 22),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        InkWell(
-                          onTap: () => TitanAICoachSheet.show(context),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(colors: [AppColors.primary, AppColors.secondary]),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text('⚡ AI', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  destinations: List.generate(_screenTitles.length, (i) {
-                    return NavigationRailDestination(
-                      icon: Icon(_screenIcons[i], color: Colors.white60),
-                      selectedIcon: Icon(_screenIcons[i], color: _screenColors[i]),
-                      label: Text(_screenTitles[i]),
-                    );
-                  }),
-                ),
-                const VerticalDivider(width: 1, color: AppColors.borderLight),
-                Expanded(
-                  child: Column(
-                    children: [
-                      _buildTopBrandingHeader(),
-                      Expanded(child: _screens[_currentIndex]),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -1321,7 +1228,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   Widget _buildTopBrandingHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.surface.withValues(alpha: 0.85),
         border: const Border(bottom: BorderSide(color: AppColors.borderLight, width: 1)),
@@ -1341,8 +1248,8 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
               children: [
                 // OFFICIAL GET SET GO LOGO EMBLEM
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 44,
+                  height: 44,
                   padding: const EdgeInsets.all(2.5),
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -1351,7 +1258,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                     boxShadow: [
                       BoxShadow(
                         color: AppColors.secondary.withValues(alpha: 0.35),
-                        blurRadius: 8,
+                        blurRadius: 10,
                         offset: const Offset(0, 2),
                       ),
                     ],
@@ -1363,12 +1270,12 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                       fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) => Container(
                         color: const Color(0xFF070B16),
-                        child: const Icon(Icons.rocket_launch_rounded, color: AppColors.secondary, size: 20),
+                        child: const Icon(Icons.rocket_launch_rounded, color: AppColors.secondary, size: 22),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Flexible(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1377,9 +1284,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                       const Text(
                         'GET SET GO',
                         style: TextStyle(
-                          fontSize: 14.5,
+                          fontSize: 15.5,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 1.5,
+                          letterSpacing: 1.8,
                           color: Colors.white,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -1394,6 +1301,12 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                             decoration: BoxDecoration(
                               color: _screenColors[_currentIndex],
                               shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _screenColors[_currentIndex],
+                                  blurRadius: 4,
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(width: 5),
@@ -1401,8 +1314,8 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                             child: Text(
                               _screenTitles[_currentIndex].toUpperCase(),
                               style: TextStyle(
-                                fontSize: 9,
-                                letterSpacing: 1.0,
+                                fontSize: 9.5,
+                                letterSpacing: 1.1,
                                 color: _screenColors[_currentIndex],
                                 fontWeight: FontWeight.bold,
                               ),
@@ -1417,66 +1330,30 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
               ],
             ),
           ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // TITAN AI ACTION BUTTON
-              InkWell(
-                onTap: () => TitanAICoachSheet.show(context),
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [AppColors.primary, AppColors.secondary]),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(color: AppColors.primary.withValues(alpha: 0.35), blurRadius: 6),
-                    ],
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.auto_awesome_rounded, size: 13, color: Colors.white),
-                      SizedBox(width: 4),
-                      Text('TITAN AI', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.6)),
-                    ],
-                  ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: HealthState.bmiColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: HealthState.bmiColor.withValues(alpha: 0.4), width: 1.2),
+              boxShadow: [
+                BoxShadow(
+                  color: HealthState.bmiColor.withValues(alpha: 0.1),
+                  blurRadius: 8,
                 ),
-              ),
-              const SizedBox(width: 6),
-
-              // CLOUD ACCOUNT & SYNC AVATAR BUTTON
-              InkWell(
-                onTap: () => AccountAndCloudSyncModal.show(context),
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceElevated,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.borderLight),
-                  ),
-                  child: ValueListenableBuilder<AppUser>(
-                    valueListenable: AuthService.instance.currentUserNotifier,
-                    builder: (ctx, u, _) => Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(u.avatarEmoji, style: const TextStyle(fontSize: 13)),
-                        const SizedBox(width: 4),
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: u.isCloudAccount ? AppColors.accentGreen : AppColors.accentAmber,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.monitor_weight_rounded, size: 14, color: HealthState.bmiColor),
+                const SizedBox(width: 6),
+                Text(
+                  HealthState.bmi > 0 ? 'BMI ${HealthState.bmi.toStringAsFixed(1)}' : 'BMI --',
+                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: HealthState.bmiColor),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -3473,18 +3350,8 @@ class _MasterDashboardScreenState extends State<MasterDashboardScreen> {
         children: [
           Container(width: 5, height: 5, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
           const SizedBox(width: 5),
-          Flexible(
-            child: Text.rich(
-              TextSpan(
-                text: '$label: ',
-                style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
-                children: [
-                  TextSpan(text: val, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: color)),
-                ],
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
+          Text('$label: ', style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
+          Text(val, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: color)),
         ],
       ),
     );

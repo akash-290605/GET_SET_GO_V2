@@ -13,6 +13,7 @@
 migrate_working_dir/
 .gemini/
 *.apk
+GET_SET_GO.apk
 
 # IntelliJ related
 *.iml
