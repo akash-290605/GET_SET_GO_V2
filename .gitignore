@@ -11,9 +11,6 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
-.gemini/
-*.apk
-GET_SET_GO.apk
 
 # IntelliJ related
 *.iml
@@ -21,8 +18,10 @@ GET_SET_GO.apk
 *.iws
 .idea/
 
-# VS Code
-.vscode/
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
 
 # Flutter/Dart/Pub related
 **/doc/api/
