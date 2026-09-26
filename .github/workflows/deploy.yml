@@ -1,4 +1,4 @@
-name: Build & Deploy Flutter Web & Android
+name: Fast Web Deploy & Android Build
 
 on:
   push:
@@ -10,14 +10,13 @@ permissions:
   pages: write
   id-token: write
 
-concurrency:
-  group: "pages"
-  cancel-in-progress: true
-
 jobs:
-  # Deploy Web App (Builds in ~60-90 seconds)
+  # JOB 1: Web Build & Instant Deploy (~60s)
   deploy-web:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: 📥 Checkout Code
         uses: actions/checkout@v4
@@ -36,25 +35,25 @@ jobs:
           flutter build web --release --base-href "/GET_SET_GO/"
           touch build/web/.nojekyll
 
-      # 1. Deploy to GitHub Pages branch (gh-pages)
-      - name: 🚀 Publish to gh-pages branch
+      # Deploy via GitHub Pages Branch (gh-pages)
+      - name: 🚀 Publish to gh-pages Branch
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./build/web
           force_orphan: true
 
-      # 2. Native GitHub Actions Pages Deploy
+      # Deploy via Native GitHub Actions Environment
       - name: 📦 Upload Web Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: build/web
 
-      - name: 🌍 Deploy to GitHub Pages Action
+      - name: 🌍 Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
 
-  # Build Android APK in parallel
+  # JOB 2: Android APK Build in Parallel
   build-apk:
     runs-on: ubuntu-latest
     steps:
