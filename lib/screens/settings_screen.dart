@@ -154,6 +154,93 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  // Edit Strict Goal Protocol Modal
+  void _openStrictGoalEditor() {
+    final p = ProfileService.instance;
+    final titleCtrl = TextEditingController(text: p.strictGoalTitle);
+    final stepCtrl = TextEditingController(text: p.dailyStepTarget.toString());
+    final activeCtrl = TextEditingController(text: p.dailyActiveTimeMinutesTarget.toString());
+    final weightTargetCtrl = TextEditingController(text: p.targetWeightKg.toStringAsFixed(1));
+    bool strictMode = p.isStrictMode;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDlgState) => AlertDialog(
+          backgroundColor: Theme.of(context).cardColor,
+          title: const Row(
+            children: [
+              Icon(Icons.track_changes_rounded, color: AppColors.primaryGlow),
+              SizedBox(width: 8),
+              Text('Strict Goal Protocol', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleCtrl,
+                  decoration: const InputDecoration(labelText: 'Goal Headline', border: OutlineInputBorder(), prefixIcon: Icon(Icons.fitness_center)),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: stepCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Daily Step Target', border: OutlineInputBorder(), prefixIcon: Icon(Icons.directions_walk_rounded)),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: activeCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Daily Active Minutes Target', border: OutlineInputBorder(), prefixIcon: Icon(Icons.timer_outlined)),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: weightTargetCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Target Weight (kg)', border: OutlineInputBorder(), prefixIcon: Icon(Icons.monitor_weight_outlined)),
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Strict Discipline Mode', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold)),
+                  subtitle: const Text('Enforce daily compliance badges & banners', style: TextStyle(fontSize: 11)),
+                  value: strictMode,
+                  activeThumbColor: AppColors.primaryGlow,
+                  onChanged: (v) => setDlgState(() => strictMode = v),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+              onPressed: () async {
+                final newTitle = titleCtrl.text.trim();
+                final newSteps = int.tryParse(stepCtrl.text.trim()) ?? p.dailyStepTarget;
+                final newActive = int.tryParse(activeCtrl.text.trim()) ?? p.dailyActiveTimeMinutesTarget;
+                final newTargetW = double.tryParse(weightTargetCtrl.text.trim()) ?? p.targetWeightKg;
+
+                await p.updateStrictGoal(
+                  strictGoalTitle: newTitle.isNotEmpty ? newTitle : p.strictGoalTitle,
+                  isStrictMode: strictMode,
+                  dailyStepTarget: newSteps,
+                  dailyActiveTimeMinutesTarget: newActive,
+                  targetWeightKg: newTargetW,
+                );
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (mounted) setState(() {});
+              },
+              child: const Text('Save Protocol', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // Edit Finance Preferences Modal
   void _openFinanceSettings() {
     final currencyCtrl = TextEditingController(text: ProfileService.instance.currencySymbol);
@@ -395,15 +482,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSectionHeader('Profile & Fitness Metrics'),
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: ListTile(
-              leading: const CircleAvatar(
-                backgroundColor: AppColors.primary,
-                child: Icon(Icons.person_rounded, color: Colors.white),
-              ),
-              title: Text(profile.userName, style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text('${profile.fitnessGoal} • ${profile.weightKg} kg (Target: ${profile.targetWeightKg} kg)'),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: _openProfileEditor,
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: AppColors.primary,
+                    child: Icon(Icons.person_rounded, color: Colors.white),
+                  ),
+                  title: Text(profile.userName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text('${profile.fitnessGoal} • ${profile.weightKg} kg (Target: ${profile.targetWeightKg} kg)'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: _openProfileEditor,
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: AppColors.primaryGlow,
+                    child: Icon(Icons.track_changes_rounded, color: Colors.black),
+                  ),
+                  title: const Text('Strict Goal Protocol & Steps', style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text('${profile.strictGoalTitle}\nTarget: ${profile.dailyStepTarget} Steps • ${profile.dailyActiveTimeMinutesTarget} Active Mins', style: const TextStyle(fontSize: 12)),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: _openStrictGoalEditor,
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 16),

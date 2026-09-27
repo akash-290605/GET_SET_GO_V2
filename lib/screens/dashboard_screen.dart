@@ -8,6 +8,7 @@ import 'food_tracking_screen.dart';
 import 'workout_screen.dart';
 import 'expense_screen.dart';
 import 'ai_coach_screen.dart';
+import 'study_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final Function(int)? onNavigateTab;
@@ -286,15 +287,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                           const SizedBox(width: 8),
                           _buildQuickActionButton(
+                            icon: Icons.school_rounded,
+                            label: 'Study & STT',
+                            color: AppColors.accentAmber,
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyAndEnglishScreen())),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildQuickActionButton(
                             icon: Icons.psychology_rounded,
                             label: 'Ask AI Coach',
-                            color: AppColors.accentAmber,
+                            color: AppColors.primaryGlow,
                             onTap: () => widget.onNavigateTab != null ? widget.onNavigateTab!(4) : Navigator.push(context, MaterialPageRoute(builder: (_) => const AiCoachScreen())),
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 18),
+
+                    // 0. Strict Goal Protocol & Daily Telemetry Card
+                    _buildStrictGoalCard(),
+                    const SizedBox(height: 14),
 
                     // Dynamic Widgets: Fitness, Nutrition, Finance
                     // 1. Fitness Card
@@ -544,6 +556,333 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStrictGoalCard() {
+    final theme = Theme.of(context);
+    final profile = ProfileService.instance;
+    final stepProgress = (profile.dailyStepTarget > 0 ? profile.todaySteps / profile.dailyStepTarget : 0.0).clamp(0.0, 1.0);
+    final activeProgress = (profile.dailyActiveTimeMinutesTarget > 0 ? profile.todayActiveTimeMinutes / profile.dailyActiveTimeMinutesTarget : 0.0).clamp(0.0, 1.0);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.primaryGlow.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.track_changes_rounded, color: AppColors.primaryGlow, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    profile.isStrictMode ? 'STRICT GOAL PROTOCOL' : 'DAILY GOAL TARGETS',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryGlow, letterSpacing: 1.1),
+                  ),
+                ],
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                icon: const Icon(Icons.edit_note_rounded, color: AppColors.primaryGlow, size: 20),
+                tooltip: 'Edit Strict Protocol',
+                onPressed: () => _showEditStrictGoalDialog(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            profile.strictGoalTitle,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          ),
+          const Divider(height: 20),
+
+          // Steps Telemetry Gauge
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.directions_walk_rounded, color: AppColors.accentAmber, size: 16),
+                  const SizedBox(width: 6),
+                  Text('${profile.todaySteps} / ${profile.dailyStepTarget} Steps', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              Row(
+                children: [
+                  InkWell(
+                    onTap: () => profile.logSteps(500),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(color: AppColors.accentAmber.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                      child: const Text('+500', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.accentAmber)),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  InkWell(
+                    onTap: () => profile.logSteps(1000),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(color: AppColors.accentAmber.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                      child: const Text('+1k', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.accentAmber)),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  InkWell(
+                    onTap: () => _showCustomNumberInputDialog(
+                      context,
+                      title: 'Set Today Steps',
+                      initialVal: profile.todaySteps.toString(),
+                      onSaved: (val) {
+                        final v = int.tryParse(val);
+                        if (v != null) profile.setSteps(v);
+                      },
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                    child: const Icon(Icons.edit_outlined, size: 14, color: AppColors.textMuted),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: stepProgress,
+              minHeight: 5,
+              backgroundColor: theme.dividerColor.withValues(alpha: 0.1),
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accentAmber),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Active Minutes Telemetry Gauge
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.timer_outlined, color: AppColors.accentBlue, size: 16),
+                  const SizedBox(width: 6),
+                  Text('${profile.todayActiveTimeMinutes} / ${profile.dailyActiveTimeMinutesTarget} Active Mins', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              Row(
+                children: [
+                  InkWell(
+                    onTap: () => profile.logActiveMinutes(15),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(color: AppColors.accentBlue.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                      child: const Text('+15m', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.accentBlue)),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  InkWell(
+                    onTap: () => profile.logActiveMinutes(30),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(color: AppColors.accentBlue.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                      child: const Text('+30m', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.accentBlue)),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  InkWell(
+                    onTap: () => _showCustomNumberInputDialog(
+                      context,
+                      title: 'Set Active Minutes',
+                      initialVal: profile.todayActiveTimeMinutes.toString(),
+                      onSaved: (val) {
+                        final v = int.tryParse(val);
+                        if (v != null) profile.setActiveMinutes(v);
+                      },
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                    child: const Icon(Icons.edit_outlined, size: 14, color: AppColors.textMuted),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: activeProgress,
+              minHeight: 5,
+              backgroundColor: theme.dividerColor.withValues(alpha: 0.1),
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accentBlue),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditStrictGoalDialog(BuildContext context) {
+    final profile = ProfileService.instance;
+    final titleCtrl = TextEditingController(text: profile.strictGoalTitle);
+    final stepCtrl = TextEditingController(text: profile.dailyStepTarget.toString());
+    final activeCtrl = TextEditingController(text: profile.dailyActiveTimeMinutesTarget.toString());
+    final weightTargetCtrl = TextEditingController(text: profile.targetWeightKg.toStringAsFixed(1));
+    bool strictMode = profile.isStrictMode;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              backgroundColor: Theme.of(context).cardColor,
+              title: const Row(
+                children: [
+                  Icon(Icons.track_changes_rounded, color: AppColors.primaryGlow),
+                  SizedBox(width: 8),
+                  Text('Edit Strict Goal Protocol', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Strict Goal Headline',
+                        hintText: 'e.g. Strict 10,000 Steps & Lean Hypertrophy Protocol',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.fitness_center),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: stepCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Daily Step Target',
+                        hintText: 'e.g. 10000',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.directions_walk_rounded),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: activeCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Daily Active Minutes Target',
+                        hintText: 'e.g. 60',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.timer_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: weightTargetCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Target Weight (kg)',
+                        hintText: 'e.g. 68.0',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.monitor_weight_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Strict Discipline Mode', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold)),
+                      subtitle: const Text('Enforce daily compliance reminders & highlights', style: TextStyle(fontSize: 11)),
+                      value: strictMode,
+                      activeThumbColor: AppColors.primaryGlow,
+                      onChanged: (v) => setModalState(() => strictMode = v),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () async {
+                    final newTitle = titleCtrl.text.trim();
+                    final newSteps = int.tryParse(stepCtrl.text.trim()) ?? profile.dailyStepTarget;
+                    final newActive = int.tryParse(activeCtrl.text.trim()) ?? profile.dailyActiveTimeMinutesTarget;
+                    final newTargetW = double.tryParse(weightTargetCtrl.text.trim()) ?? profile.targetWeightKg;
+
+                    await profile.updateStrictGoal(
+                      strictGoalTitle: newTitle.isNotEmpty ? newTitle : profile.strictGoalTitle,
+                      isStrictMode: strictMode,
+                      dailyStepTarget: newSteps,
+                      dailyActiveTimeMinutesTarget: newActive,
+                      targetWeightKg: newTargetW,
+                    );
+                    if (ctx.mounted) Navigator.of(ctx).pop();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Strict Goal Protocol updated!'), backgroundColor: AppColors.accentGreen),
+                      );
+                    }
+                  },
+                  child: const Text('Save Protocol'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showCustomNumberInputDialog(
+    BuildContext context, {
+    required String title,
+    required String initialVal,
+    required Function(String) onSaved,
+  }) {
+    final ctrl = TextEditingController(text: initialVal);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            onPressed: () {
+              onSaved(ctrl.text.trim());
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Update'),
           ),
         ],
       ),

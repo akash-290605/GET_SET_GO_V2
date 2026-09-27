@@ -27,6 +27,14 @@ class ProfileService extends ChangeNotifier {
   double monthlyBudgetCap = 25000.0;
   String preferredUnit = 'kg';
 
+  // Strict Goal Protocol & Daily Telemetry
+  String strictGoalTitle = 'Strict 10,000 Steps & Lean Hypertrophy Protocol';
+  bool isStrictMode = true;
+  int dailyStepTarget = 10000;
+  int dailyActiveTimeMinutesTarget = 60;
+  int todaySteps = 7420;
+  int todayActiveTimeMinutes = 45;
+
   // Daily Nutrition Targets
   DailyNutritionTarget nutritionTarget = DailyNutritionTarget(
     calorieTarget: 2200.0,
@@ -59,6 +67,12 @@ class ProfileService extends ChangeNotifier {
         currencySymbol = map['currencySymbol'] ?? currencySymbol;
         monthlyBudgetCap = (map['monthlyBudgetCap'] as num?)?.toDouble() ?? monthlyBudgetCap;
         preferredUnit = map['preferredUnit'] ?? preferredUnit;
+        strictGoalTitle = map['strictGoalTitle'] ?? strictGoalTitle;
+        isStrictMode = map['isStrictMode'] ?? isStrictMode;
+        dailyStepTarget = (map['dailyStepTarget'] as num?)?.toInt() ?? dailyStepTarget;
+        dailyActiveTimeMinutesTarget = (map['dailyActiveTimeMinutesTarget'] as num?)?.toInt() ?? dailyActiveTimeMinutesTarget;
+        todaySteps = (map['todaySteps'] as num?)?.toInt() ?? todaySteps;
+        todayActiveTimeMinutes = (map['todayActiveTimeMinutes'] as num?)?.toInt() ?? todayActiveTimeMinutes;
       }
 
       final targetStr = prefs.getString(_nutritionTargetKey);
@@ -149,6 +163,47 @@ class ProfileService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateStrictGoal({
+    String? strictGoalTitle,
+    bool? isStrictMode,
+    int? dailyStepTarget,
+    int? dailyActiveTimeMinutesTarget,
+    double? targetWeightKg,
+  }) async {
+    if (strictGoalTitle != null) this.strictGoalTitle = strictGoalTitle;
+    if (isStrictMode != null) this.isStrictMode = isStrictMode;
+    if (dailyStepTarget != null) this.dailyStepTarget = dailyStepTarget;
+    if (dailyActiveTimeMinutesTarget != null) this.dailyActiveTimeMinutesTarget = dailyActiveTimeMinutesTarget;
+    if (targetWeightKg != null) this.targetWeightKg = targetWeightKg;
+
+    await _saveProfile();
+    notifyListeners();
+  }
+
+  Future<void> logSteps(int delta) async {
+    todaySteps = (todaySteps + delta).clamp(0, 100000);
+    await _saveProfile();
+    notifyListeners();
+  }
+
+  Future<void> setSteps(int steps) async {
+    todaySteps = steps.clamp(0, 100000);
+    await _saveProfile();
+    notifyListeners();
+  }
+
+  Future<void> logActiveMinutes(int delta) async {
+    todayActiveTimeMinutes = (todayActiveTimeMinutes + delta).clamp(0, 1440);
+    await _saveProfile();
+    notifyListeners();
+  }
+
+  Future<void> setActiveMinutes(int minutes) async {
+    todayActiveTimeMinutes = minutes.clamp(0, 1440);
+    await _saveProfile();
+    notifyListeners();
+  }
+
   Future<void> _saveProfile() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -164,6 +219,12 @@ class ProfileService extends ChangeNotifier {
         'currencySymbol': currencySymbol,
         'monthlyBudgetCap': monthlyBudgetCap,
         'preferredUnit': preferredUnit,
+        'strictGoalTitle': strictGoalTitle,
+        'isStrictMode': isStrictMode,
+        'dailyStepTarget': dailyStepTarget,
+        'dailyActiveTimeMinutesTarget': dailyActiveTimeMinutesTarget,
+        'todaySteps': todaySteps,
+        'todayActiveTimeMinutes': todayActiveTimeMinutes,
       };
       await prefs.setString(_profileKey, json.encode(map));
     } catch (e) {

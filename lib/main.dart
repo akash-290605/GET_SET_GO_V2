@@ -14,6 +14,7 @@ import 'screens/expense_screen.dart';
 import 'screens/ai_coach_screen.dart';
 import 'screens/progress_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/study_screen.dart';
 import 'widgets/account_cloud_modal.dart';
 
 void main() async {
@@ -294,6 +295,14 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     child: Text('MORE TOOLS & ARCHIVES', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: theme.hintColor, letterSpacing: 1.1)),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.school_rounded, color: AppColors.accentAmber),
+                    title: const Text('Study Tracker & STT English', style: TextStyle(fontSize: 14)),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyAndEnglishScreen()));
+                    },
                   ),
                   ListTile(
                     leading: const Icon(Icons.cloud_sync_rounded, color: AppColors.accentBlue),
