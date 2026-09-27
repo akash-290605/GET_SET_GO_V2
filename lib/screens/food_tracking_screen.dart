@@ -173,7 +173,7 @@ class _FoodTrackingScreenState extends State<FoodTrackingScreen> with SingleTick
 
         return AlertDialog(
           backgroundColor: Theme.of(context).cardColor,
-          title: const Text('Add Food Item', style: TextStyle(fontWeight: FontWeight.bold)),
+          title: const Text('Quick Custom Food Entry', style: TextStyle(fontWeight: FontWeight.bold)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -186,7 +186,7 @@ class _FoodTrackingScreenState extends State<FoodTrackingScreen> with SingleTick
                 TextField(
                   controller: gramsController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Portion (Grams)', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Portion (Grams)', border: OutlineInputBorder(), suffixText: 'g'),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -272,6 +272,586 @@ class _FoodTrackingScreenState extends State<FoodTrackingScreen> with SingleTick
               child: const Text('Add Item', style: TextStyle(color: Colors.white)),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  void _showSouthIndianCatalogueModal() async {
+    await StandardNutritionDatabase.init();
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        String searchQuery = '';
+        String selectedCategory = 'All';
+        final searchCtrl = TextEditingController();
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final theme = Theme.of(context);
+            final foods = StandardNutritionDatabase.searchFoods(searchQuery, category: selectedCategory);
+            final categories = StandardNutritionDatabase.getCategories();
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.88,
+              decoration: BoxDecoration(
+                color: theme.scaffoldBackgroundColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                children: [
+                  // Handle Bar
+                  Container(
+                    margin: const EdgeInsets.only(top: 10, bottom: 6),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: theme.dividerColor.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.restaurant_menu_rounded, color: AppColors.accentGreen, size: 22),
+                            SizedBox(width: 8),
+                            Text(
+                              'South Indian Food & Snacks',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.accentGreen,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          icon: const Icon(Icons.add_rounded, size: 16),
+                          label: const Text('Add Dish', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          onPressed: () => _showAddNewDishToDatabaseDialog(onDishAdded: () {
+                            setModalState(() {});
+                          }),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Search Field
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    child: TextField(
+                      controller: searchCtrl,
+                      decoration: InputDecoration(
+                        hintText: 'Search Dosa, Idli, Biryani, Vada, Coffee, etc...',
+                        prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                        suffixIcon: searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear_rounded, size: 18),
+                                onPressed: () {
+                                  searchCtrl.clear();
+                                  setModalState(() => searchQuery = '');
+                                },
+                              )
+                            : null,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        isDense: true,
+                      ),
+                      onChanged: (val) => setModalState(() => searchQuery = val),
+                    ),
+                  ),
+
+                  // Category Filter Chips
+                  Container(
+                    height: 44,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: categories.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 6),
+                      itemBuilder: (context, idx) {
+                        final cat = categories[idx];
+                        final isSelected = selectedCategory == cat;
+                        return ChoiceChip(
+                          label: Text(cat, style: TextStyle(fontSize: 11.5, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                          selected: isSelected,
+                          selectedColor: AppColors.accentGreen.withValues(alpha: 0.25),
+                          onSelected: (_) => setModalState(() => selectedCategory = cat),
+                        );
+                      },
+                    ),
+                  ),
+                  const Divider(height: 12),
+
+                  // Food Items List
+                  Expanded(
+                    child: foods.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.no_food_rounded, size: 48, color: AppColors.textMuted),
+                              const SizedBox(height: 10),
+                              Text('No dishes found for "$searchQuery"', style: TextStyle(color: theme.hintColor, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 6),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(backgroundColor: AppColors.accentGreen, foregroundColor: Colors.white),
+                                icon: const Icon(Icons.add_rounded, size: 16),
+                                label: const Text('Add This Custom Dish to Database'),
+                                onPressed: () => _showAddNewDishToDatabaseDialog(
+                                  prefilledName: searchQuery,
+                                  onDishAdded: () => setModalState(() {}),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          itemCount: foods.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 10),
+                          itemBuilder: (context, idx) {
+                            final item = foods[idx];
+                            return _buildCatalogueFoodTile(item, setModalState);
+                          },
+                        ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildCatalogueFoodTile(StandardFoodEntry food, StateSetter setModalState) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: food.isCustom ? AppColors.accentPurple.withValues(alpha: 0.4) : theme.dividerColor.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            food.name,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                        ),
+                        if (food.isCustom) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.accentPurple.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text('Custom', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: AppColors.accentPurple)),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text('${food.category} • Serving: ${food.servingSize}', style: TextStyle(fontSize: 11.5, color: theme.hintColor)),
+                  ],
+                ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (food.isCustom)
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.accentRose),
+                      tooltip: 'Delete custom food',
+                      onPressed: () async {
+                        await StandardNutritionDatabase.deleteCustomFood(food.id);
+                        setModalState(() {});
+                      },
+                    ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.accentGreen,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      visualDensity: VisualDensity.compact,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: () => _showPortionSelectAndAddDialog(food),
+                    child: const Text('Add +', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Macro Row
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              _buildMacroBadge('⚡ ${(food.caloriesPerServing).toStringAsFixed(0)} kcal', AppColors.accentAmber),
+              _buildMacroBadge('🥩 ${(food.proteinPerServing).toStringAsFixed(1)}g Pro', AppColors.primary),
+              _buildMacroBadge('🍞 ${(food.carbsPerServing).toStringAsFixed(1)}g Carb', AppColors.accentBlue),
+              _buildMacroBadge('🥑 ${(food.fatPerServing).toStringAsFixed(1)}g Fat', AppColors.accentRose),
+              if (food.fiberPerServing > 0)
+                _buildMacroBadge('🌿 ${(food.fiberPerServing).toStringAsFixed(1)}g Fib', AppColors.accentGreen),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMacroBadge(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: color),
+      ),
+    );
+  }
+
+  void _showPortionSelectAndAddDialog(StandardFoodEntry food) {
+    double portionGrams = food.defaultGrams;
+    final gramsCtrl = TextEditingController(text: portionGrams.toStringAsFixed(0));
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setPortionState) {
+            final ratio = portionGrams / 100.0;
+            final cal = (food.caloriesPer100g * ratio).toStringAsFixed(0);
+            final pro = (food.proteinPer100g * ratio).toStringAsFixed(1);
+            final carb = (food.carbsPer100g * ratio).toStringAsFixed(1);
+            final fat = (food.fatPer100g * ratio).toStringAsFixed(1);
+            final fib = (food.fiberPer100g * ratio).toStringAsFixed(1);
+
+            return AlertDialog(
+              backgroundColor: Theme.of(context).cardColor,
+              title: Text('Add "${food.name}"', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Adjust portion to accurately match your meal:', style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor)),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: gramsCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Portion (Grams / ml)',
+                      suffixText: 'g',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (val) {
+                      final v = double.tryParse(val);
+                      if (v != null && v > 0) {
+                        setPortionState(() => portionGrams = v);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Quick Gram Presets
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [50, 100, 150, 200, 250, 300].map((g) {
+                      final selected = portionGrams == g.toDouble();
+                      return ChoiceChip(
+                        label: Text('${g}g'),
+                        selected: selected,
+                        selectedColor: AppColors.accentGreen.withValues(alpha: 0.25),
+                        onSelected: (_) {
+                          setPortionState(() {
+                            portionGrams = g.toDouble();
+                            gramsCtrl.text = g.toString();
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const Divider(height: 20),
+
+                  // Calculated Macro Box
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).scaffoldBackgroundColor,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildPortionMetric('Calories', '$cal kcal', AppColors.accentAmber),
+                        _buildPortionMetric('Protein', '${pro}g', AppColors.primary),
+                        _buildPortionMetric('Carbs', '${carb}g', AppColors.accentBlue),
+                        _buildPortionMetric('Fat', '${fat}g', AppColors.accentRose),
+                        if (food.fiberPer100g > 0)
+                          _buildPortionMetric('Fiber', '${fib}g', AppColors.accentGreen),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.accentGreen, foregroundColor: Colors.white),
+                  onPressed: () {
+                    final finalGrams = double.tryParse(gramsCtrl.text) ?? portionGrams;
+                    final finalRatio = finalGrams / 100.0;
+
+                    final detected = FoodItemDetected(
+                      name: food.name,
+                      portionGrams: finalGrams,
+                      calories: double.parse((food.caloriesPer100g * finalRatio).toStringAsFixed(1)),
+                      protein: double.parse((food.proteinPer100g * finalRatio).toStringAsFixed(1)),
+                      carbs: double.parse((food.carbsPer100g * finalRatio).toStringAsFixed(1)),
+                      fat: double.parse((food.fatPer100g * finalRatio).toStringAsFixed(1)),
+                      fiber: double.parse((food.fiberPer100g * finalRatio).toStringAsFixed(1)),
+                      base100gCalories: food.caloriesPer100g,
+                      base100gProtein: food.proteinPer100g,
+                      base100gCarbs: food.carbsPer100g,
+                      base100gFat: food.fatPer100g,
+                      base100gFiber: food.fiberPer100g,
+                      confidence: 'High Confidence',
+                    );
+
+                    setState(() {
+                      _detectedItems.add(detected);
+                    });
+
+                    Navigator.pop(ctx); // Close portion dialog
+                    Navigator.pop(context); // Close bottom sheet
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Added ${food.name} (${finalGrams.toStringAsFixed(0)}g) to plate!'),
+                        backgroundColor: AppColors.accentGreen,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                  child: const Text('Add to Plate'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildPortionMetric(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(value, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: color)),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
+      ],
+    );
+  }
+
+  void _showAddNewDishToDatabaseDialog({String? prefilledName, VoidCallback? onDishAdded}) {
+    final nameCtrl = TextEditingController(text: prefilledName ?? '');
+    String category = 'Breakfast';
+    final servingCtrl = TextEditingController(text: '1 Plate (150g)');
+    final gramsCtrl = TextEditingController(text: '150');
+    final calCtrl = TextEditingController(text: '180');
+    final proCtrl = TextEditingController(text: '6');
+    final carbCtrl = TextEditingController(text: '28');
+    final fatCtrl = TextEditingController(text: '5');
+    final fiberCtrl = TextEditingController(text: '2');
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              backgroundColor: Theme.of(context).cardColor,
+              title: const Row(
+                children: [
+                  Icon(Icons.restaurant_rounded, color: AppColors.accentGreen),
+                  SizedBox(width: 8),
+                  Text('Add New Dish to Database', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(labelText: 'Dish / Snack Name *', border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: category,
+                      decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
+                      items: StandardNutritionDatabase.getCategories()
+                          .where((c) => c != 'All' && c != 'Custom Foods')
+                          .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                          .toList(),
+                      onChanged: (val) {
+                        if (val != null) setModalState(() => category = val);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: servingCtrl,
+                            decoration: const InputDecoration(labelText: 'Serving Desc', hintText: 'e.g. 2 Pcs', border: OutlineInputBorder()),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: gramsCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: 'Default Grams', suffixText: 'g', border: OutlineInputBorder()),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: calCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: 'Calories / 100g', border: OutlineInputBorder()),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: proCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: 'Protein (g)', border: OutlineInputBorder()),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: carbCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: 'Carbs (g)', border: OutlineInputBorder()),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: fatCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: 'Fat (g)', border: OutlineInputBorder()),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: fiberCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Fiber (g)', border: OutlineInputBorder()),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.accentGreen, foregroundColor: Colors.white),
+                  onPressed: () async {
+                    final name = nameCtrl.text.trim();
+                    if (name.isEmpty) return;
+
+                    final defGrams = double.tryParse(gramsCtrl.text) ?? 100.0;
+                    final cal100 = double.tryParse(calCtrl.text) ?? 150.0;
+                    final pro100 = double.tryParse(proCtrl.text) ?? 5.0;
+                    final carb100 = double.tryParse(carbCtrl.text) ?? 25.0;
+                    final fat100 = double.tryParse(fatCtrl.text) ?? 3.0;
+                    final fib100 = double.tryParse(fiberCtrl.text) ?? 1.0;
+
+                    final newFood = StandardFoodEntry(
+                      name: name,
+                      category: category,
+                      servingSize: servingCtrl.text.trim().isNotEmpty ? servingCtrl.text.trim() : '${defGrams.toStringAsFixed(0)}g',
+                      defaultGrams: defGrams,
+                      caloriesPer100g: cal100,
+                      proteinPer100g: pro100,
+                      carbsPer100g: carb100,
+                      fatPer100g: fat100,
+                      fiberPer100g: fib100,
+                      isCustom: true,
+                    );
+
+                    final nav = Navigator.of(ctx);
+                    final messenger = ScaffoldMessenger.of(context);
+
+                    await StandardNutritionDatabase.addCustomFood(newFood);
+                    if (onDishAdded != null) onDishAdded();
+
+                    nav.pop();
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text('Saved "$name" permanently into South Indian Food Database!'),
+                        backgroundColor: AppColors.accentGreen,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                  child: const Text('Save to Database'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -445,17 +1025,44 @@ class _FoodTrackingScreenState extends State<FoodTrackingScreen> with SingleTick
             ],
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accentGreen,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.menu_book_rounded, size: 18),
+                  label: const Text(
+                    'South Indian Catalogue (100+ Items)',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onPressed: _showSouthIndianCatalogueModal,
+                ),
               ),
-              icon: const Icon(Icons.add_circle_outline_rounded),
-              label: const Text('Manual Food Entry (No Photo)'),
-              onPressed: _addCustomItem,
-            ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 2,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.add_circle_outline_rounded, size: 16),
+                  label: const Text(
+                    'Quick Custom',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onPressed: _addCustomItem,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 20),
 

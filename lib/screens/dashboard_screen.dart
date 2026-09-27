@@ -9,6 +9,7 @@ import 'workout_screen.dart';
 import 'expense_screen.dart';
 import 'ai_coach_screen.dart';
 import 'study_screen.dart';
+import 'discipline_goals_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final Function(int)? onNavigateTab;
@@ -592,13 +593,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ],
               ),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: const Icon(Icons.edit_note_rounded, color: AppColors.primaryGlow, size: 20),
-                tooltip: 'Edit Strict Protocol',
-                onPressed: () => _showEditStrictGoalDialog(context),
+              Row(
+                children: [
+                  InkWell(
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DisciplineGoalsScreen())),
+                    child: const Text('All Goals & Streaks →', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppColors.primaryGlow)),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    icon: const Icon(Icons.edit_note_rounded, color: AppColors.primaryGlow, size: 20),
+                    tooltip: 'Edit Strict Protocol',
+                    onPressed: () => _showEditStrictGoalDialog(context),
+                  ),
+                ],
               ),
             ],
           ),
@@ -729,6 +739,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
               minHeight: 5,
               backgroundColor: theme.dividerColor.withValues(alpha: 0.1),
               valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accentBlue),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                side: BorderSide(color: AppColors.primaryGlow.withValues(alpha: 0.3)),
+              ),
+              icon: const Icon(Icons.track_changes_rounded, size: 16, color: AppColors.primaryGlow),
+              label: const Text('Manage Strict Goals & Apology Archive', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryGlow)),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DisciplineGoalsScreen())),
             ),
           ),
         ],
