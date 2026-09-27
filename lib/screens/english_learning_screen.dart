@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../models/study_english_models.dart';
 import '../services/study_english_service.dart';
 import '../services/theme_service.dart';
+import '../widgets/glass_card.dart';
 
 class EnglishLearningScreen extends StatefulWidget {
   const EnglishLearningScreen({super.key});
@@ -306,20 +307,21 @@ A habit loop consists of three interconnected components: the cue (trigger), the
   }
 
   Widget _buildVocabStatCard(String label, String value, Color color) {
-    final theme = Theme.of(context);
+    final isDark = ThemeService.instance.isDarkMode(context);
     return Expanded(
-      child: Container(
+      child: GlassCard(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
+        borderRadius: 14,
+        border: Border.all(color: color.withValues(alpha: isDark ? 0.35 : 0.25)),
         child: Column(
           children: [
             Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: color)),
             const SizedBox(height: 2),
-            Text(label, style: TextStyle(fontSize: 10, color: theme.hintColor, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+            Text(
+              label,
+              style: TextStyle(fontSize: 10, color: AppColors.textSecondary(isDark), fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       ),
@@ -327,7 +329,7 @@ A habit loop consists of three interconnected components: the cue (trigger), the
   }
 
   Widget _buildVocabWordCard(EnglishVocabularyWord word) {
-    final theme = Theme.of(context);
+    final isDark = ThemeService.instance.isDarkMode(context);
     Color statusColor;
     String statusLabel;
     switch (word.status) {
@@ -345,13 +347,10 @@ A habit loop consists of three interconnected components: the cue (trigger), the
         break;
     }
 
-    return Container(
+    return GlassCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.12)),
-      ),
+      borderRadius: 16,
+      border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -360,10 +359,16 @@ A habit loop consists of three interconnected components: the cue (trigger), the
             children: [
               Row(
                 children: [
-                  Text(word.word, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: AppColors.primaryGlow)),
+                  Text(
+                    word.word,
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: AppColors.primary),
+                  ),
                   if (word.phonetic.isNotEmpty) ...[
                     const SizedBox(width: 8),
-                    Text(word.phonetic, style: TextStyle(fontSize: 12, color: theme.hintColor, fontStyle: FontStyle.italic)),
+                    Text(
+                      word.phonetic,
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark), fontStyle: FontStyle.italic),
+                    ),
                   ],
                 ],
               ),
@@ -373,9 +378,9 @@ A habit loop consists of three interconnected components: the cue (trigger), the
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.15),
+                    color: statusColor.withValues(alpha: isDark ? 0.20 : 0.12),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                    border: Border.all(color: statusColor.withValues(alpha: isDark ? 0.35 : 0.25)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -394,17 +399,24 @@ A habit loop consists of three interconnected components: the cue (trigger), the
             ],
           ),
           const SizedBox(height: 6),
-          Text(word.meaning, style: const TextStyle(fontSize: 13.5, height: 1.35, fontWeight: FontWeight.w500)),
+          Text(
+            word.meaning,
+            style: TextStyle(fontSize: 13.5, height: 1.35, fontWeight: FontWeight.w500, color: AppColors.textPrimary(isDark)),
+          ),
           if (word.example.isNotEmpty) ...[
             const SizedBox(height: 8),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: theme.scaffoldBackgroundColor,
+                color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
                 borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
               ),
-              child: Text('Ex: “${word.example}”', style: const TextStyle(fontSize: 12.5, fontStyle: FontStyle.italic)),
+              child: Text(
+                'Ex: “${word.example}”',
+                style: TextStyle(fontSize: 12.5, fontStyle: FontStyle.italic, color: AppColors.textPrimary(isDark)),
+              ),
             ),
           ],
           if (word.synonyms.isNotEmpty) ...[
@@ -415,10 +427,10 @@ A habit loop consists of three interconnected components: the cue (trigger), the
               children: word.synonyms.map((s) => Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: AppColors.secondary.withValues(alpha: 0.1),
+                      color: AppColors.secondary.withValues(alpha: isDark ? 0.18 : 0.10),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Text(s, style: const TextStyle(fontSize: 11, color: AppColors.secondary)),
+                    child: Text(s, style: const TextStyle(fontSize: 11, color: AppColors.secondary, fontWeight: FontWeight.bold)),
                   )).toList(),
             ),
           ],

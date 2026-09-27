@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../db_helper.dart';
 import '../models/workout_template_models.dart';
 import '../services/theme_service.dart';
+import '../widgets/glass_card.dart';
 
 class WorkoutScreen extends StatefulWidget {
   const WorkoutScreen({super.key});
@@ -602,25 +603,13 @@ class _WorkoutScreenState extends State<WorkoutScreen> with SingleTickerProvider
   }
 
   Widget _buildDayHeaderCard(String dayName, WorkoutDayPlan plan, bool isToday) {
-    final theme = Theme.of(context);
+    final isDark = ThemeService.instance.isDarkMode(context);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isToday ? AppColors.primary : theme.dividerColor.withValues(alpha: 0.1),
-          width: isToday ? 2 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isToday ? AppColors.primary.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+    return GlassCard(
+      borderRadius: 20,
+      border: Border.all(
+        color: isToday ? AppColors.primary : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+        width: isToday ? 2 : 1,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -630,7 +619,15 @@ class _WorkoutScreenState extends State<WorkoutScreen> with SingleTickerProvider
             children: [
               Row(
                 children: [
-                  Text(dayName.toUpperCase(), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: isToday ? AppColors.primary : theme.hintColor, letterSpacing: 1.2)),
+                  Text(
+                    dayName.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      color: isToday ? AppColors.primary : AppColors.textSecondary(isDark),
+                      letterSpacing: 1.2,
+                    ),
+                  ),
                   if (isToday) ...[
                     const SizedBox(width: 8),
                     Container(
@@ -639,43 +636,48 @@ class _WorkoutScreenState extends State<WorkoutScreen> with SingleTickerProvider
                         color: AppColors.primary.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: const Text('TODAY', style: TextStyle(color: AppColors.primaryGlow, fontWeight: FontWeight.bold, fontSize: 10)),
+                      child: const Text('TODAY', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 10)),
                     ),
                   ],
                 ],
               ),
               IconButton(
-                icon: const Icon(Icons.edit_note_rounded, size: 22),
+                icon: Icon(Icons.edit_note_rounded, size: 22, color: AppColors.textSecondary(isDark)),
                 tooltip: 'Edit Workout Info',
                 onPressed: () => _editWorkoutHeaderDialog(dayName),
               ),
             ],
           ),
           const SizedBox(height: 6),
-          Text(plan.workoutName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+          Text(
+            plan.workoutName,
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.textPrimary(isDark)),
+          ),
           const SizedBox(height: 4),
           Row(
             children: [
-              Icon(Icons.bubble_chart_rounded, size: 14, color: theme.hintColor),
+              Icon(Icons.bubble_chart_rounded, size: 14, color: AppColors.textSecondary(isDark)),
               const SizedBox(width: 4),
-              Text(plan.muscleGroup, style: TextStyle(fontSize: 13, color: theme.hintColor, fontWeight: FontWeight.w600)),
+              Text(plan.muscleGroup, style: TextStyle(fontSize: 13, color: AppColors.textSecondary(isDark), fontWeight: FontWeight.w600)),
               const SizedBox(width: 12),
-              Icon(Icons.timer_outlined, size: 14, color: theme.hintColor),
+              Icon(Icons.timer_outlined, size: 14, color: AppColors.textSecondary(isDark)),
               const SizedBox(width: 4),
-              Text('~${plan.estimatedDurationMinutes} mins', style: TextStyle(fontSize: 13, color: theme.hintColor, fontWeight: FontWeight.w600)),
+              Text('~${plan.estimatedDurationMinutes} mins', style: TextStyle(fontSize: 13, color: AppColors.textSecondary(isDark), fontWeight: FontWeight.w600)),
               const SizedBox(width: 12),
-              Icon(Icons.speed_rounded, size: 14, color: theme.hintColor),
+              Icon(Icons.speed_rounded, size: 14, color: AppColors.textSecondary(isDark)),
               const SizedBox(width: 4),
-              Text(plan.difficulty, style: TextStyle(fontSize: 13, color: theme.hintColor, fontWeight: FontWeight.w600)),
+              Text(plan.difficulty, style: TextStyle(fontSize: 13, color: AppColors.textSecondary(isDark), fontWeight: FontWeight.w600)),
             ],
           ),
-          const Divider(height: 24),
+          const SizedBox(height: 14),
+          Divider(height: 1, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+          const SizedBox(height: 14),
 
           // Status Selector Chips
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Text('Status: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              Text('Status: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary(isDark))),
               const SizedBox(width: 8),
               Expanded(
                 child: SingleChildScrollView(
@@ -688,7 +690,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> with SingleTickerProvider
                         padding: const EdgeInsets.only(right: 6),
                         child: ChoiceChip(
                           avatar: isSelected ? const Icon(Icons.check, size: 14, color: Colors.white) : null,
-                          label: Text(WorkoutModels.getStatusLabel(st), style: TextStyle(fontSize: 11.5, color: isSelected ? Colors.white : null, fontWeight: FontWeight.bold)),
+                          label: Text(WorkoutModels.getStatusLabel(st), style: TextStyle(fontSize: 11.5, color: isSelected ? Colors.white : AppColors.textPrimary(isDark), fontWeight: FontWeight.bold)),
                           selected: isSelected,
                           selectedColor: col,
                           onSelected: (val) {
@@ -708,102 +710,99 @@ class _WorkoutScreenState extends State<WorkoutScreen> with SingleTickerProvider
   }
 
   Widget _buildExerciseCard(ExerciseDetail exercise, String dayName, int index, Key key) {
-    final theme = Theme.of(context);
+    final isDark = ThemeService.instance.isDarkMode(context);
 
-    return Card(
+    return GlassCard(
       key: key,
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => _openExerciseDetailModal(exercise, dayName, index),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              // Exercise illustration / icon thumbnail
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  width: 64,
-                  height: 64,
-                  color: AppColors.primary.withValues(alpha: 0.12),
-                  child: Center(
-                    child: Text(
-                      exercise.photoUrl,
-                      style: const TextStyle(fontSize: 32),
-                    ),
-                  ),
+      borderRadius: 16,
+      onTap: () => _openExerciseDetailModal(exercise, dayName, index),
+      child: Row(
+        children: [
+          // Exercise illustration / icon thumbnail
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: 64,
+              height: 64,
+              color: AppColors.primary.withValues(alpha: isDark ? 0.15 : 0.08),
+              child: Center(
+                child: Text(
+                  exercise.photoUrl,
+                  style: const TextStyle(fontSize: 32),
                 ),
               ),
-              const SizedBox(width: 14),
+            ),
+          ),
+          const SizedBox(width: 14),
 
-              // Exercise info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          // Exercise info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  exercise.name,
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${exercise.targetMuscle} • ${exercise.equipment}',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark)),
+                ),
+                const SizedBox(height: 6),
+                Row(
                   children: [
-                    Text(exercise.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${exercise.targetMuscle} • ${exercise.equipment}',
-                      style: TextStyle(fontSize: 12, color: theme.hintColor),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.10),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '${exercise.sets} sets × ${exercise.reps} reps',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
+                      ),
                     ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '${exercise.sets} sets × ${exercise.reps} reps',
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryGlow),
-                          ),
+                    if (exercise.weightKg > 0) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.accentGreen.withValues(alpha: isDark ? 0.18 : 0.10),
+                          borderRadius: BorderRadius.circular(6),
                         ),
-                        if (exercise.weightKg > 0) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.accentGreen.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              '${exercise.weightKg.toStringAsFixed(0)} kg',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.accentGreen),
-                            ),
-                          ),
-                        ],
-                        const SizedBox(width: 6),
-                        Text(
-                          '${exercise.restSeconds}s rest',
-                          style: TextStyle(fontSize: 11, color: theme.hintColor),
+                        child: Text(
+                          '${exercise.weightKg.toStringAsFixed(0)} kg',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.accentGreen),
                         ),
-                      ],
+                      ),
+                    ],
+                    const SizedBox(width: 6),
+                    Text(
+                      '${exercise.restSeconds}s rest',
+                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary(isDark)),
                     ),
                   ],
                 ),
-              ),
-
-              // Delete button
-              IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.accentRose),
-                onPressed: () async {
-                  final plan = _getCurrentDayPlan(dayName);
-                  final updatedExercises = List<ExerciseDetail>.from(plan.exercises)..removeAt(index);
-                  final updatedPlan = plan.copyWith(exercises: updatedExercises);
-                  setState(() {
-                    _workoutPlans[dayName] = updatedPlan;
-                  });
-                  await DBHelper.instance.saveWorkoutPlan(updatedPlan);
-                },
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+
+          // Delete button
+          IconButton(
+            icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.accentRose),
+            onPressed: () async {
+              final plan = _getCurrentDayPlan(dayName);
+              final updatedExercises = List<ExerciseDetail>.from(plan.exercises)..removeAt(index);
+              final updatedPlan = plan.copyWith(exercises: updatedExercises);
+              setState(() {
+                _workoutPlans[dayName] = updatedPlan;
+              });
+              await DBHelper.instance.saveWorkoutPlan(updatedPlan);
+            },
+          ),
+        ],
       ),
     );
   }
@@ -899,12 +898,13 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = ThemeService.instance.isDarkMode(context);
     final theme = Theme.of(context);
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.88,
       decoration: BoxDecoration(
-        color: theme.scaffoldBackgroundColor,
+        color: isDark ? AppColors.darkBackground : AppColors.lightBackground,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       ),
       child: Column(
@@ -915,7 +915,10 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
               margin: const EdgeInsets.only(top: 12, bottom: 8),
               width: 44,
               height: 4,
-              decoration: BoxDecoration(color: theme.dividerColor, borderRadius: BorderRadius.circular(2)),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
           Expanded(
@@ -931,7 +934,7 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
                         width: 80,
                         height: 80,
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.15),
+                          color: AppColors.primary.withValues(alpha: isDark ? 0.15 : 0.08),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Center(
@@ -943,11 +946,14 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(_ex.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                            Text(
+                              _ex.name,
+                              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+                            ),
                             const SizedBox(height: 4),
-                            Text('Primary: ${_ex.targetMuscle}', style: TextStyle(fontSize: 13, color: theme.hintColor)),
+                            Text('Primary: ${_ex.targetMuscle}', style: TextStyle(fontSize: 13, color: AppColors.textSecondary(isDark))),
                             if (_ex.secondaryMuscles.isNotEmpty)
-                              Text('Secondary: ${_ex.secondaryMuscles}', style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                              Text('Secondary: ${_ex.secondaryMuscles}', style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark))),
                           ],
                         ),
                       ),
@@ -956,25 +962,22 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
                   const SizedBox(height: 20),
 
                   // Rest Timer Widget
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceElevated,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: _isTimerActive ? AppColors.accentAmber : theme.dividerColor.withValues(alpha: 0.1)),
+                  GlassCard(
+                    borderRadius: 18,
+                    border: Border.all(
+                      color: _isTimerActive ? AppColors.accentAmber : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
                     ),
                     child: Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: (_isTimerActive ? AppColors.accentAmber : AppColors.primary).withValues(alpha: 0.2),
+                            color: (_isTimerActive ? AppColors.accentAmber : AppColors.primary).withValues(alpha: 0.18),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
                             _isTimerActive ? Icons.timer_outlined : Icons.timer_rounded,
-                            color: _isTimerActive ? AppColors.accentAmber : AppColors.primaryGlow,
+                            color: _isTimerActive ? AppColors.accentAmber : AppColors.primary,
                             size: 24,
                           ),
                         ),
@@ -985,29 +988,33 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
                             children: [
                               Text(
                                 _isTimerActive ? 'Resting: ${_secondsRemaining}s' : 'Rest Timer (${_ex.restSeconds}s)',
-                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
                               ),
                               Text(
                                 _isTimerActive ? 'Take deep breaths & prepare.' : 'Auto-starts after each set',
-                                style: const TextStyle(fontSize: 11.5, color: Colors.white70),
+                                style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary(isDark)),
                               ),
                             ],
                           ),
                         ),
                         if (_isTimerActive) ...[
                           IconButton(
-                            icon: const Icon(Icons.pause_rounded, color: Colors.white),
+                            icon: Icon(Icons.pause_rounded, color: AppColors.textPrimary(isDark)),
                             onPressed: _pauseRestTimer,
                           ),
                           IconButton(
-                            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                            icon: Icon(Icons.refresh_rounded, color: AppColors.textPrimary(isDark)),
                             onPressed: _resetRestTimer,
                           ),
                         ] else ...[
                           ElevatedButton(
-                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                            ),
                             onPressed: () => _startRestTimer(_ex.restSeconds),
-                            child: const Text('Start Rest', style: TextStyle(color: Colors.white)),
+                            child: const Text('Start Rest'),
                           ),
                         ],
                       ],

@@ -204,8 +204,10 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Row(
           children: [
@@ -256,7 +258,7 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
               return Container(
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                 decoration: BoxDecoration(
-                  color: theme.cardColor,
+                  color: isDark ? const Color(0xFF1E293B).withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.75),
                   border: Border(bottom: BorderSide(color: theme.dividerColor.withValues(alpha: 0.08))),
                 ),
                 child: SingleChildScrollView(
@@ -310,7 +312,7 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: theme.cardColor,
+              color: isDark ? const Color(0xFF1E293B).withValues(alpha: 0.8) : Colors.white.withValues(alpha: 0.9),
               border: Border(top: BorderSide(color: theme.dividerColor.withValues(alpha: 0.12))),
             ),
             child: SafeArea(
@@ -319,10 +321,12 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
                   Expanded(
                     child: TextField(
                       controller: _queryController,
-                      decoration: const InputDecoration(
+                      style: TextStyle(color: AppColors.textPrimary(isDark)),
+                      decoration: InputDecoration(
                         hintText: 'Ask AI Coach anything across Fitness, Food, Finance, Study...',
+                        hintStyle: TextStyle(fontSize: 12.5, color: AppColors.textSecondary(isDark)),
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       ),
                       onSubmitted: (v) => _handleSendMessage(v),
                     ),
@@ -346,6 +350,7 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
 
   Widget _buildMessageBubble(_ChatMessage msg) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final isUser = msg.isUser;
 
     return Align(
@@ -357,12 +362,26 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
         decoration: BoxDecoration(
           color: isUser
               ? AppColors.primary
-              : (msg.isError ? AppColors.accentRose.withValues(alpha: 0.15) : theme.cardColor),
+              : (msg.isError
+                  ? AppColors.accentRose.withValues(alpha: 0.15)
+                  : (isDark ? const Color(0xFF1E293B).withValues(alpha: 0.85) : Colors.white.withValues(alpha: 0.9))),
           borderRadius: BorderRadius.circular(16).copyWith(
             bottomRight: isUser ? const Radius.circular(2) : const Radius.circular(16),
             bottomLeft: !isUser ? const Radius.circular(2) : const Radius.circular(16),
           ),
-          border: !isUser ? Border.all(color: theme.dividerColor.withValues(alpha: 0.15)) : null,
+          border: !isUser
+              ? Border.all(
+                  color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.08),
+                  width: 1,
+                )
+              : null,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -386,7 +405,9 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
               style: TextStyle(
                 fontSize: 13.5,
                 height: 1.4,
-                color: isUser ? Colors.white : (msg.isError ? AppColors.accentRose : null),
+                color: isUser
+                    ? Colors.white
+                    : (msg.isError ? AppColors.accentRose : AppColors.textPrimary(isDark)),
                 fontWeight: isUser ? FontWeight.w500 : FontWeight.normal,
               ),
             ),

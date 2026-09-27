@@ -5,6 +5,7 @@ import '../models/workout_models.dart';
 import '../services/profile_service.dart';
 import '../services/study_english_service.dart';
 import '../services/theme_service.dart';
+import '../widgets/glass_card.dart';
 import 'food_tracking_screen.dart';
 import 'workout_screen.dart';
 import 'expense_screen.dart';
@@ -206,6 +207,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = ThemeService.instance.isDarkMode(context);
     final profile = ProfileService.instance;
     final curSym = profile.currencySymbol;
     final todayWk = _todayWorkout;
@@ -214,6 +216,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final totalPlannedWorkouts = _workouts.where((w) => w.status != WorkoutStatus.restDay).length;
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -225,40 +228,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // 1. HERO SECTION
-                    _buildHeroSection(context, profile),
+                    _buildHeroSection(context, profile, isDark),
                     const SizedBox(height: 16),
 
                     // 2. COMPACT AI INSIGHT CARD
-                    _buildAiInsightCard(context),
+                    _buildAiInsightCard(context, isDark),
                     const SizedBox(height: 16),
 
                     // 3. DASHBOARD QUICK ACTIONS
-                    _buildQuickActionsRow(context),
+                    _buildQuickActionsRow(context, isDark),
                     const SizedBox(height: 18),
 
                     // 4. CENTRAL DAILY PROGRESS VISUALIZATION
-                    _buildDailyProgressOverview(context, profile, finStats),
+                    _buildDailyProgressOverview(context, profile, finStats, isDark),
                     const SizedBox(height: 16),
 
                     // 5. 7-DAY WEEKLY MATRIX
-                    _buildWeeklyMatrixCard(context),
+                    _buildWeeklyMatrixCard(context, isDark),
                     const SizedBox(height: 16),
 
                     // 6. STRICT GOAL PROTOCOL & DAILY TELEMETRY
-                    _buildStrictGoalCard(),
+                    _buildStrictGoalCard(isDark),
                     const SizedBox(height: 16),
 
                     // 7. FOUR MAJOR OVERVIEW CARDS: FITNESS, NUTRITION, FINANCE, STUDY
-                    _buildFitnessCard(todayWk, completedWorkouts, totalPlannedWorkouts),
+                    _buildFitnessCard(todayWk, completedWorkouts, totalPlannedWorkouts, isDark),
                     const SizedBox(height: 14),
 
-                    _buildNutritionCard(),
+                    _buildNutritionCard(isDark),
                     const SizedBox(height: 14),
 
-                    _buildFinanceCard(finStats, curSym),
+                    _buildFinanceCard(finStats, curSym, isDark),
                     const SizedBox(height: 14),
 
-                    _buildStudyCard(),
+                    _buildStudyCard(isDark),
                     const SizedBox(height: 40),
                   ],
                 ),
@@ -268,23 +271,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ================= 1. HERO SECTION =================
-  Widget _buildHeroSection(BuildContext context, ProfileService profile) {
-    final theme = Theme.of(context);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.primary.withValues(alpha: 0.25),
-            AppColors.secondary.withValues(alpha: 0.15),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
+  Widget _buildHeroSection(BuildContext context, ProfileService profile, bool isDark) {
+    return GlassCard(
+      borderRadius: 20,
+      gradient: LinearGradient(
+        colors: isDark
+            ? [
+                AppColors.primary.withValues(alpha: 0.28),
+                AppColors.secondary.withValues(alpha: 0.15),
+              ]
+            : [
+                AppColors.primary.withValues(alpha: 0.10),
+                AppColors.secondary.withValues(alpha: 0.06),
+              ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      border: Border.all(
+        color: AppColors.primary.withValues(alpha: isDark ? 0.35 : 0.20),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -298,12 +302,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     Text(
                       '$_timeOfDayGreeting, ${profile.userName} 👋',
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.textPrimary(isDark),
+                      ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       'Let\'s make today productive and disciplined.',
-                      style: TextStyle(fontSize: 13, color: theme.hintColor),
+                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary(isDark)),
                     ),
                   ],
                 ),
@@ -312,35 +320,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: AppColors.accentAmber.withValues(alpha: 0.2),
+                  color: AppColors.accentAmber.withValues(alpha: isDark ? 0.2 : 0.12),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.accentAmber.withValues(alpha: 0.4)),
+                  border: Border.all(color: AppColors.accentAmber.withValues(alpha: 0.35)),
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.local_fire_department_rounded, color: AppColors.accentAmber, size: 18),
                     SizedBox(width: 4),
-                    Text('5 Day Streak', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.accentAmber)),
+                    Text(
+                      '5 Day Streak',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: AppColors.accentAmber,
+                      ),
+                    ),
                   ],
                 ),
               ),
             ],
           ),
-          const Divider(height: 24),
+          const SizedBox(height: 16),
+          Divider(height: 1, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+          const SizedBox(height: 14),
 
           // 4 Mini Live Status Chips
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _buildHeroMiniChip('💪 Workout', _todayWorkout != null ? _todayWorkout!.workoutName : 'Rest Day', AppColors.primaryGlow),
+                _buildHeroMiniChip('💪 Workout', _todayWorkout != null ? _todayWorkout!.workoutName : 'Rest Day', AppColors.primary, isDark),
                 const SizedBox(width: 8),
-                _buildHeroMiniChip('🍎 Calories', '~${_todayCalories.toStringAsFixed(0)} / ${profile.nutritionTarget.calorieTarget.toStringAsFixed(0)}', AppColors.accentGreen),
+                _buildHeroMiniChip('🍎 Calories', '~${_todayCalories.toStringAsFixed(0)} / ${profile.nutritionTarget.calorieTarget.toStringAsFixed(0)}', AppColors.accentGreen, isDark),
                 const SizedBox(width: 8),
-                _buildHeroMiniChip('💰 Budget Left', '₹${(profile.monthlyBudgetCap - (_monthlyFinanceStats['expenses'] as double)).toStringAsFixed(0)}', AppColors.secondary),
+                _buildHeroMiniChip('💰 Budget Left', '₹${(profile.monthlyBudgetCap - (_monthlyFinanceStats['expenses'] as double)).toStringAsFixed(0)}', AppColors.secondary, isDark),
                 const SizedBox(width: 8),
-                _buildHeroMiniChip('📚 Study Goal', '$_todayStudyMinutes / 120m', AppColors.accentAmber),
+                _buildHeroMiniChip('📚 Study Goal', '$_todayStudyMinutes / 120m', AppColors.purple, isDark),
               ],
             ),
           ),
@@ -349,34 +366,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildHeroMiniChip(String label, String value, Color color) {
+  Widget _buildHeroMiniChip(String label, String value, Color color, bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: color.withValues(alpha: isDark ? 0.15 : 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: color.withValues(alpha: isDark ? 0.35 : 0.25)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text('$label: ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
-          Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary(isDark),
+            ),
+          ),
         ],
       ),
     );
   }
 
   // ================= 2. COMPACT AI INSIGHT CARD =================
-  Widget _buildAiInsightCard(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.primaryGlow.withValues(alpha: 0.35)),
-      ),
+  Widget _buildAiInsightCard(BuildContext context, bool isDark) {
+    return GlassCard(
+      borderRadius: 18,
+      border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -384,29 +403,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.2), shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.1),
+                  shape: BoxShape.circle,
+                ),
                 child: const Icon(Icons.auto_awesome_rounded, color: AppColors.accentAmber, size: 18),
               ),
               const SizedBox(width: 10),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('GET SET GO AI INSIGHT', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.accentAmber, letterSpacing: 1.1)),
-                    Text('Real-time Life & Performance Analytics', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                    const Text('GET SET GO AI INSIGHT', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.accentAmber, letterSpacing: 1.1)),
+                    Text(
+                      'Real-time Life & Performance Analytics',
+                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary(isDark)),
+                    ),
                   ],
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          Text(_smartAiInsight, style: const TextStyle(fontSize: 13, height: 1.4, fontWeight: FontWeight.w500)),
+          Text(
+            _smartAiInsight,
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.4,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textPrimary(isDark),
+            ),
+          ),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.textPrimary(isDark),
+                  side: BorderSide(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
@@ -421,10 +456,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  elevation: 0,
                 ),
                 onPressed: () {
                   if (widget.onNavigateTab != null) {
-                    widget.onNavigateTab!(4);
+                    widget.onNavigateTab!(6);
                   } else {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const AiCoachScreen()));
                   }
@@ -440,11 +476,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ================= 3. QUICK ACTIONS ROW =================
-  Widget _buildQuickActionsRow(BuildContext context) {
+  Widget _buildQuickActionsRow(BuildContext context, bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Quick Actions', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+        Text(
+          'Quick Actions',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+        ),
         const SizedBox(height: 8),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -454,6 +493,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 icon: Icons.camera_alt_rounded,
                 label: 'Scan Food AI',
                 color: AppColors.accentGreen,
+                isDark: isDark,
                 onTap: () => widget.onNavigateTab != null ? widget.onNavigateTab!(2) : Navigator.push(context, MaterialPageRoute(builder: (_) => const FoodTrackingScreen())),
               ),
               const SizedBox(width: 8),
@@ -461,6 +501,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 icon: Icons.add_card_rounded,
                 label: 'Add Expense',
                 color: AppColors.secondary,
+                isDark: isDark,
                 onTap: () => widget.onNavigateTab != null ? widget.onNavigateTab!(3) : Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseScreen())),
               ),
               const SizedBox(width: 8),
@@ -468,13 +509,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 icon: Icons.fitness_center_rounded,
                 label: 'Start Workout',
                 color: AppColors.primary,
+                isDark: isDark,
                 onTap: () => widget.onNavigateTab != null ? widget.onNavigateTab!(1) : Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkoutScreen())),
               ),
               const SizedBox(width: 8),
               _buildQuickActionButton(
                 icon: Icons.school_rounded,
                 label: 'Start Study',
-                color: AppColors.accentAmber,
+                color: AppColors.purple,
+                isDark: isDark,
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyAndEnglishScreen())),
               ),
               const SizedBox(width: 8),
@@ -482,6 +525,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 icon: Icons.directions_walk_rounded,
                 label: 'Vitals & Water',
                 color: AppColors.accentBlue,
+                isDark: isDark,
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyActivityAndVitalsScreen())),
               ),
               const SizedBox(width: 8),
@@ -489,7 +533,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 icon: Icons.psychology_rounded,
                 label: 'Ask AI Coach',
                 color: AppColors.primaryGlow,
-                onTap: () => widget.onNavigateTab != null ? widget.onNavigateTab!(4) : Navigator.push(context, MaterialPageRoute(builder: (_) => const AiCoachScreen())),
+                isDark: isDark,
+                onTap: () => widget.onNavigateTab != null ? widget.onNavigateTab!(6) : Navigator.push(context, MaterialPageRoute(builder: (_) => const AiCoachScreen())),
               ),
             ],
           ),
@@ -502,35 +547,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required IconData icon,
     required String label,
     required Color color,
+    required bool isDark,
     required VoidCallback onTap,
   }) {
-    final theme = Theme.of(context);
-    return InkWell(
+    return GlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      borderRadius: 12,
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.35)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: color),
-            const SizedBox(width: 6),
-            Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-          ],
-        ),
+      border: Border.all(color: color.withValues(alpha: isDark ? 0.35 : 0.25)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary(isDark),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   // ================= 4. DAILY PROGRESS VISUALIZATION =================
-  Widget _buildDailyProgressOverview(BuildContext context, ProfileService profile, Map<String, dynamic> finStats) {
-    final theme = Theme.of(context);
-
+  Widget _buildDailyProgressOverview(BuildContext context, ProfileService profile, Map<String, dynamic> finStats, bool isDark) {
     // Fitness Progress: 1.0 if completed, 0.5 if in progress, else 0
     final fitnessPct = _todayWorkout?.status == WorkoutStatus.completed ? 1.0 : (_todayWorkout?.status == WorkoutStatus.inProgress ? 0.5 : 0.7);
     final nutritionPct = (profile.nutritionTarget.calorieTarget > 0 ? _todayCalories / profile.nutritionTarget.calorieTarget : 0.0).clamp(0.0, 1.0);
@@ -538,47 +582,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final budgetSpent = finStats['expenses'] as double;
     final budgetPct = (1.0 - (budgetSpent / profile.monthlyBudgetCap)).clamp(0.0, 1.0);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.15)),
-      ),
+    return GlassCard(
+      borderRadius: 18,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Today\'s Life Balance Progress', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-              Text(_currentDayName, style: TextStyle(fontSize: 12, color: theme.hintColor, fontWeight: FontWeight.w600)),
+              Text(
+                'Today\'s Life Balance Progress',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+              ),
+              Text(
+                _currentDayName,
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark), fontWeight: FontWeight.w600),
+              ),
             ],
           ),
           const SizedBox(height: 14),
 
-          _buildProgressRow('💪 Fitness', fitnessPct, '${(fitnessPct * 100).toStringAsFixed(0)}%', AppColors.primaryGlow),
+          _buildProgressRow('💪 Fitness', fitnessPct, '${(fitnessPct * 100).toStringAsFixed(0)}%', AppColors.primary, isDark),
           const SizedBox(height: 10),
-          _buildProgressRow('🍎 Nutrition', nutritionPct, '${(nutritionPct * 100).toStringAsFixed(0)}%', AppColors.accentGreen),
+          _buildProgressRow('🍎 Nutrition', nutritionPct, '${(nutritionPct * 100).toStringAsFixed(0)}%', AppColors.accentGreen, isDark),
           const SizedBox(height: 10),
-          _buildProgressRow('📚 Study & Focus', studyPct, '${(studyPct * 100).toStringAsFixed(0)}%', AppColors.accentAmber),
+          _buildProgressRow('📚 Study & Focus', studyPct, '${(studyPct * 100).toStringAsFixed(0)}%', AppColors.purple, isDark),
           const SizedBox(height: 10),
-          _buildProgressRow('💰 Budget Adherence', budgetPct, '${(budgetPct * 100).toStringAsFixed(0)}%', AppColors.secondary),
+          _buildProgressRow('💰 Budget Adherence', budgetPct, '${(budgetPct * 100).toStringAsFixed(0)}%', AppColors.secondary, isDark),
         ],
       ),
     );
   }
 
-  Widget _buildProgressRow(String label, double value, String pctLabel, Color color) {
-    final theme = Theme.of(context);
+  Widget _buildProgressRow(String label, double value, String pctLabel, Color color, bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary(isDark))),
             Text(pctLabel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
           ],
         ),
@@ -588,7 +631,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: LinearProgressIndicator(
             value: value,
             minHeight: 7,
-            backgroundColor: theme.dividerColor.withValues(alpha: 0.1),
+            backgroundColor: isDark ? const Color(0x1FFFFFFF) : const Color(0x1F0F172A),
             valueColor: AlwaysStoppedAnimation<Color>(color),
           ),
         ),
@@ -597,27 +640,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ================= 5. 7-DAY WEEKLY MATRIX =================
-  Widget _buildWeeklyMatrixCard(BuildContext context) {
-    final theme = Theme.of(context);
+  Widget _buildWeeklyMatrixCard(BuildContext context, bool isDark) {
     final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     final currentIdx = (DateTime.now().weekday - 1).clamp(0, 6);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.15)),
-      ),
+    return GlassCard(
+      borderRadius: 18,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Weekly Performance Matrix', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-              Text('Week Streak: 5 Days 🔥', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppColors.accentAmber)),
+              Text(
+                'Weekly Performance Matrix',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+              ),
+              const Text('Week Streak: 5 Days 🔥', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppColors.accentAmber)),
             ],
           ),
           const SizedBox(height: 12),
@@ -628,18 +667,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
               return Container(
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                 decoration: BoxDecoration(
-                  color: isToday ? AppColors.primary.withValues(alpha: 0.2) : theme.scaffoldBackgroundColor,
+                  color: isToday
+                      ? AppColors.primary.withValues(alpha: isDark ? 0.22 : 0.12)
+                      : (isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: isToday ? AppColors.primary : theme.dividerColor.withValues(alpha: 0.1)),
+                  border: Border.all(
+                    color: isToday
+                        ? AppColors.primary
+                        : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                  ),
                 ),
                 child: Column(
                   children: [
-                    Text(days[i], style: TextStyle(fontSize: 11, fontWeight: isToday ? FontWeight.bold : FontWeight.w500, color: isToday ? AppColors.primaryGlow : null)),
+                    Text(
+                      days[i],
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: isToday ? FontWeight.bold : FontWeight.w500,
+                        color: isToday ? AppColors.primary : AppColors.textSecondary(isDark),
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     Icon(
                       i <= currentIdx ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
                       size: 16,
-                      color: i <= currentIdx ? AppColors.accentGreen : AppColors.textMuted,
+                      color: i <= currentIdx ? AppColors.accentGreen : AppColors.textSecondary(isDark),
                     ),
                   ],
                 ),
@@ -652,21 +704,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ================= 6. STRICT GOAL CARD =================
-  Widget _buildStrictGoalCard() {
-    final theme = Theme.of(context);
+  Widget _buildStrictGoalCard(bool isDark) {
     final profile = ProfileService.instance;
     final stepProgress = (profile.dailyStepTarget > 0 ? profile.todaySteps / profile.dailyStepTarget : 0.0).clamp(0.0, 1.0);
     final activeProgress = (profile.dailyActiveTimeMinutesTarget > 0 ? profile.todayActiveTimeMinutes / profile.dailyActiveTimeMinutesTarget : 0.0).clamp(0.0, 1.0);
     final waterProgress = (profile.dailyWaterIntakeMlTarget > 0 ? profile.todayWaterIntakeMl / profile.dailyWaterIntakeMlTarget : 0.0).clamp(0.0, 1.0);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.primaryGlow.withValues(alpha: 0.35)),
-      ),
+    return GlassCard(
+      borderRadius: 18,
+      border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -675,23 +721,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.track_changes_rounded, color: AppColors.primaryGlow, size: 18),
+                  const Icon(Icons.track_changes_rounded, color: AppColors.primary, size: 18),
                   const SizedBox(width: 8),
                   Text(
                     profile.isStrictMode ? 'STRICT GOAL PROTOCOL' : 'DAILY GOAL TARGETS',
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryGlow, letterSpacing: 1.1),
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary, letterSpacing: 1.1),
                   ),
                 ],
               ),
               InkWell(
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DisciplineGoalsScreen())),
-                child: const Text('Strict Goals Hub →', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppColors.primaryGlow)),
+                child: const Text('Strict Goals Hub →', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppColors.primary)),
               ),
             ],
           ),
           const SizedBox(height: 6),
-          Text(profile.strictGoalTitle, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold)),
-          const Divider(height: 18),
+          Text(
+            profile.strictGoalTitle,
+            style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+          ),
+          const SizedBox(height: 12),
+          Divider(height: 1, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+          const SizedBox(height: 12),
 
           // Steps
           InkWell(
@@ -701,9 +752,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.directions_walk_rounded, color: AppColors.accentAmber, size: 16),
+                    const Icon(Icons.directions_walk_rounded, color: AppColors.accentBlue, size: 16),
                     const SizedBox(width: 6),
-                    Text('${profile.todaySteps} / ${profile.dailyStepTarget} Steps', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
+                    Text(
+                      '${profile.todaySteps} / ${profile.dailyStepTarget} Steps',
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+                    ),
                   ],
                 ),
                 Row(
@@ -712,8 +766,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       onTap: () => profile.logSteps(500),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: AppColors.accentAmber.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
-                        child: const Text('+500', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.accentAmber)),
+                        decoration: BoxDecoration(color: AppColors.accentBlue.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                        child: const Text('+500', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.accentBlue)),
                       ),
                     ),
                     const SizedBox(width: 4),
@@ -721,19 +775,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       onTap: () => profile.logSteps(1000),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: AppColors.accentAmber.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
-                        child: const Text('+1k', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.accentAmber)),
+                        decoration: BoxDecoration(color: AppColors.accentBlue.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                        child: const Text('+1k', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.accentBlue)),
                       ),
                     ),
                     const SizedBox(width: 4),
-                    const Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textMuted),
+                    Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textSecondary(isDark)),
                   ],
                 ),
               ],
             ),
           ),
           const SizedBox(height: 4),
-          ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(value: stepProgress, minHeight: 5, backgroundColor: theme.dividerColor.withValues(alpha: 0.1), valueColor: const AlwaysStoppedAnimation(AppColors.accentAmber))),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: stepProgress,
+              minHeight: 5,
+              backgroundColor: isDark ? const Color(0x1FFFFFFF) : const Color(0x1F0F172A),
+              valueColor: const AlwaysStoppedAnimation(AppColors.accentBlue),
+            ),
+          ),
           const SizedBox(height: 12),
 
           // Active Mins
@@ -744,9 +806,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.timer_outlined, color: AppColors.accentBlue, size: 16),
+                    const Icon(Icons.timer_outlined, color: AppColors.purple, size: 16),
                     const SizedBox(width: 6),
-                    Text('${profile.todayActiveTimeMinutes} / ${profile.dailyActiveTimeMinutesTarget} Active Mins', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
+                    Text(
+                      '${profile.todayActiveTimeMinutes} / ${profile.dailyActiveTimeMinutesTarget} Active Mins',
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+                    ),
                   ],
                 ),
                 Row(
@@ -755,19 +820,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       onTap: () => profile.logActiveMinutes(15),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: AppColors.accentBlue.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
-                        child: const Text('+15m', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.accentBlue)),
+                        decoration: BoxDecoration(color: AppColors.purple.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                        child: const Text('+15m', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.purple)),
                       ),
                     ),
                     const SizedBox(width: 4),
-                    const Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textMuted),
+                    Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textSecondary(isDark)),
                   ],
                 ),
               ],
             ),
           ),
           const SizedBox(height: 4),
-          ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(value: activeProgress, minHeight: 5, backgroundColor: theme.dividerColor.withValues(alpha: 0.1), valueColor: const AlwaysStoppedAnimation(AppColors.accentBlue))),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: activeProgress,
+              minHeight: 5,
+              backgroundColor: isDark ? const Color(0x1FFFFFFF) : const Color(0x1F0F172A),
+              valueColor: const AlwaysStoppedAnimation(AppColors.purple),
+            ),
+          ),
           const SizedBox(height: 12),
 
           // Water
@@ -778,9 +851,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.water_drop_outlined, color: AppColors.accentGreen, size: 16),
+                    const Icon(Icons.water_drop_outlined, color: AppColors.secondary, size: 16),
                     const SizedBox(width: 6),
-                    Text('${(profile.todayWaterIntakeMl / 1000).toStringAsFixed(2)} / ${(profile.dailyWaterIntakeMlTarget / 1000).toStringAsFixed(1)} L Water', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
+                    Text(
+                      '${(profile.todayWaterIntakeMl / 1000).toStringAsFixed(2)} / ${(profile.dailyWaterIntakeMlTarget / 1000).toStringAsFixed(1)} L Water',
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+                    ),
                   ],
                 ),
                 Row(
@@ -789,37 +865,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       onTap: () => profile.logWater(250),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: AppColors.accentGreen.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
-                        child: const Text('+250ml', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.accentGreen)),
+                        decoration: BoxDecoration(color: AppColors.secondary.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                        child: const Text('+250ml', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.secondary)),
                       ),
                     ),
                     const SizedBox(width: 4),
-                    const Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textMuted),
+                    Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textSecondary(isDark)),
                   ],
                 ),
               ],
             ),
           ),
           const SizedBox(height: 4),
-          ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(value: waterProgress, minHeight: 5, backgroundColor: theme.dividerColor.withValues(alpha: 0.1), valueColor: const AlwaysStoppedAnimation(AppColors.accentGreen))),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: waterProgress,
+              minHeight: 5,
+              backgroundColor: isDark ? const Color(0x1FFFFFFF) : const Color(0x1F0F172A),
+              valueColor: const AlwaysStoppedAnimation(AppColors.secondary),
+            ),
+          ),
         ],
       ),
     );
   }
 
   // ================= 7. MAJOR CARDS: FITNESS, NUTRITION, FINANCE, STUDY =================
-  Widget _buildFitnessCard(WorkoutDayPlan? todayWk, int completed, int totalPlanned) {
-    final theme = Theme.of(context);
+  Widget _buildFitnessCard(WorkoutDayPlan? todayWk, int completed, int totalPlanned, bool isDark) {
     final profile = ProfileService.instance;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
-      ),
+    return GlassCard(
+      borderRadius: 18,
+      border: Border.all(color: AppColors.primary.withValues(alpha: isDark ? 0.3 : 0.2)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -830,7 +908,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   Icon(Icons.fitness_center_rounded, color: AppColors.primary, size: 18),
                   SizedBox(width: 8),
-                  Text('FITNESS & WORKOUT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryGlow, letterSpacing: 1.1)),
+                  Text('FITNESS & WORKOUT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary, letterSpacing: 1.1)),
                 ],
               ),
               ElevatedButton(
@@ -839,6 +917,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
                 ),
                 onPressed: () => widget.onNavigateTab != null ? widget.onNavigateTab!(1) : Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkoutScreen())),
                 child: const Text('START WORKOUT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
@@ -846,18 +925,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          Text(todayWk != null ? todayWk.workoutName : 'Active Rest Day', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Text(
+            todayWk != null ? todayWk.workoutName : 'Active Rest Day',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+          ),
           const SizedBox(height: 2),
           Text(
             todayWk != null ? '${todayWk.muscleGroup} • ${todayWk.exercises.length} exercises • ~${todayWk.estimatedDurationMinutes} mins' : 'Rest and recover for next session',
-            style: TextStyle(fontSize: 12, color: theme.hintColor),
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark)),
           ),
-          const Divider(height: 18),
+          const SizedBox(height: 12),
+          Divider(height: 1, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+          const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildMiniMetric('Weight', '${profile.weightKg} kg', 'Target: ${profile.targetWeightKg} kg'),
-              _buildMiniMetric('Weekly Split', '$completed / $totalPlanned Done', '${((totalPlanned > 0 ? completed / totalPlanned : 0) * 100).toStringAsFixed(0)}% complete'),
+              _buildMiniMetric('Weight', '${profile.weightKg} kg', 'Target: ${profile.targetWeightKg} kg', isDark),
+              _buildMiniMetric('Weekly Split', '$completed / $totalPlanned Done', '${((totalPlanned > 0 ? completed / totalPlanned : 0) * 100).toStringAsFixed(0)}% complete', isDark),
             ],
           ),
         ],
@@ -865,21 +949,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildNutritionCard() {
-    final theme = Theme.of(context);
+  Widget _buildNutritionCard(bool isDark) {
     final target = ProfileService.instance.nutritionTarget;
     final todayCal = _todayCalories;
     final todayProt = _todayProtein;
     final calPct = (target.calorieTarget > 0 ? todayCal / target.calorieTarget : 0.0).clamp(0.0, 1.0);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.accentGreen.withValues(alpha: 0.25)),
-      ),
+    return GlassCard(
+      borderRadius: 18,
+      border: Border.all(color: AppColors.accentGreen.withValues(alpha: isDark ? 0.3 : 0.2)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -899,6 +977,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
                 ),
                 onPressed: () => widget.onNavigateTab != null ? widget.onNavigateTab!(2) : Navigator.push(context, MaterialPageRoute(builder: (_) => const FoodTrackingScreen())),
                 child: const Text('TRACK FOOD', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
@@ -906,30 +985,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          Text('~${todayCal.toStringAsFixed(0)} / ${target.calorieTarget.toStringAsFixed(0)} kcal', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Text(
+            '~${todayCal.toStringAsFixed(0)} / ${target.calorieTarget.toStringAsFixed(0)} kcal',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+          ),
           const SizedBox(height: 2),
-          Text('~${todayProt.toStringAsFixed(0)}g / ${target.proteinTargetGrams.toStringAsFixed(0)}g Protein • ${(calPct * 100).toStringAsFixed(0)}% Target Achieved', style: TextStyle(fontSize: 12, color: theme.hintColor)),
+          Text(
+            '~${todayProt.toStringAsFixed(0)}g / ${target.proteinTargetGrams.toStringAsFixed(0)}g Protein • ${(calPct * 100).toStringAsFixed(0)}% Target Achieved',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark)),
+          ),
           const SizedBox(height: 8),
-          ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(value: calPct, minHeight: 6, backgroundColor: theme.dividerColor.withValues(alpha: 0.1), valueColor: const AlwaysStoppedAnimation(AppColors.accentGreen))),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: calPct,
+              minHeight: 6,
+              backgroundColor: isDark ? const Color(0x1FFFFFFF) : const Color(0x1F0F172A),
+              valueColor: const AlwaysStoppedAnimation(AppColors.accentGreen),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildFinanceCard(Map<String, dynamic> stats, String curSym) {
-    final theme = Theme.of(context);
+  Widget _buildFinanceCard(Map<String, dynamic> stats, String curSym, bool isDark) {
     final exp = stats['expenses'] as double;
     final todayExp = stats['todaySpending'] as double;
     final budgetRem = ProfileService.instance.monthlyBudgetCap - exp;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.secondary.withValues(alpha: 0.25)),
-      ),
+    return GlassCard(
+      borderRadius: 18,
+      border: Border.all(color: AppColors.secondary.withValues(alpha: isDark ? 0.3 : 0.2)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -949,6 +1036,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   foregroundColor: Colors.black,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
                 ),
                 onPressed: () => widget.onNavigateTab != null ? widget.onNavigateTab!(3) : Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseScreen())),
                 child: const Text('VIEW FINANCE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
@@ -962,8 +1050,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('$curSym ${todayExp.toStringAsFixed(0)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    Text('Today\'s Spending', style: TextStyle(fontSize: 11.5, color: theme.hintColor)),
+                    Text(
+                      '$curSym ${todayExp.toStringAsFixed(0)}',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+                    ),
+                    Text('Today\'s Spending', style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary(isDark))),
                   ],
                 ),
               ),
@@ -971,8 +1062,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text('$curSym ${budgetRem.toStringAsFixed(0)}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: budgetRem >= 0 ? AppColors.accentGreen : AppColors.accentRose)),
-                    Text('Budget Remaining', style: TextStyle(fontSize: 11.5, color: theme.hintColor)),
+                    Text(
+                      '$curSym ${budgetRem.toStringAsFixed(0)}',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: budgetRem >= 0 ? AppColors.accentGreen : AppColors.accentRose,
+                      ),
+                    ),
+                    Text('Budget Remaining', style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary(isDark))),
                   ],
                 ),
               ),
@@ -983,18 +1081,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildStudyCard() {
-    final theme = Theme.of(context);
+  Widget _buildStudyCard(bool isDark) {
     final studyService = StudyEnglishService.instance;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.accentAmber.withValues(alpha: 0.25)),
-      ),
+    return GlassCard(
+      borderRadius: 18,
+      border: Border.all(color: AppColors.purple.withValues(alpha: isDark ? 0.3 : 0.2)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1003,17 +1095,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               const Row(
                 children: [
-                  Icon(Icons.school_rounded, color: AppColors.accentAmber, size: 18),
+                  Icon(Icons.school_rounded, color: AppColors.purple, size: 18),
                   SizedBox(width: 8),
-                  Text('STUDY & ACADEMICS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.accentAmber, letterSpacing: 1.1)),
+                  Text('STUDY & ACADEMICS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.purple, letterSpacing: 1.1)),
                 ],
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.accentAmber,
-                  foregroundColor: Colors.black,
+                  backgroundColor: AppColors.purple,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
                 ),
                 onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyAndEnglishScreen())),
                 child: const Text('START STUDY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
@@ -1021,23 +1114,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          Text('$_todayStudyMinutes / 120 mins Focused Today', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Text(
+            '$_todayStudyMinutes / 120 mins Focused Today',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+          ),
           const SizedBox(height: 2),
-          Text('${studyService.studyStreakDays} Day Study Streak • ${studyService.totalCompletedTopics} Topics Mastered', style: TextStyle(fontSize: 12, color: theme.hintColor)),
+          Text(
+            '${studyService.studyStreakDays} Day Study Streak • ${studyService.totalCompletedTopics} Topics Mastered',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark)),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildMiniMetric(String label, String value, String sub) {
-    final theme = Theme.of(context);
+  Widget _buildMiniMetric(String label, String value, String sub, bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(fontSize: 11, color: theme.hintColor, fontWeight: FontWeight.bold)),
+        Text(label, style: TextStyle(fontSize: 11, color: AppColors.textSecondary(isDark), fontWeight: FontWeight.bold)),
         const SizedBox(height: 2),
-        Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-        Text(sub, style: TextStyle(fontSize: 10.5, color: theme.hintColor)),
+        Text(
+          value,
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+        ),
+        Text(sub, style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary(isDark))),
       ],
     );
   }

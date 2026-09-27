@@ -6,6 +6,7 @@ import '../models/study_english_models.dart';
 import '../services/profile_service.dart';
 import '../services/study_english_service.dart';
 import '../services/theme_service.dart';
+import '../widgets/glass_card.dart';
 
 class ProgressScreen extends StatefulWidget {
   const ProgressScreen({super.key});
@@ -109,6 +110,7 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Row(
           children: [
@@ -151,6 +153,7 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
   // ================= 1. FITNESS PROGRESS =================
   Widget _buildFitnessProgressTab() {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final profile = ProfileService.instance;
     final completedWorkouts = _workoutPlans.where((w) => w.status == WorkoutStatus.completed).length;
     final totalWorkouts = _workoutPlans.where((w) => w.status != WorkoutStatus.restDay).length;
@@ -170,20 +173,15 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
           const SizedBox(height: 14),
 
           // Weight Progression Card
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: theme.dividerColor.withValues(alpha: 0.15)),
-            ),
+          GlassCard(
+            borderColor: AppColors.primaryGlow.withValues(alpha: 0.25),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Weight Progression History', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                    Text('Weight Progression History', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark))),
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary.withValues(alpha: 0.2),
@@ -206,7 +204,7 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('${date.day}/${date.month}/${date.year}', style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                        Text('${date.day}/${date.month}/${date.year}', style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark))),
                         Text('$w kg', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primaryGlow)),
                       ],
                     ),
@@ -224,6 +222,7 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
   // ================= 2. NUTRITION PROGRESS =================
   Widget _buildNutritionProgressTab() {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final target = ProfileService.instance.nutritionTarget;
 
     double totalCal = 0;
@@ -251,17 +250,12 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
           ),
           const SizedBox(height: 14),
 
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.accentGreen.withValues(alpha: 0.25)),
-            ),
+          GlassCard(
+            borderColor: AppColors.accentGreen.withValues(alpha: 0.25),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Aggregated Nutrition Summary', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                Text('Aggregated Nutrition Summary', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark))),
                 const SizedBox(height: 12),
                 _buildMacroBar('Total Estimated Energy', '~${totalCal.toStringAsFixed(0)} kcal', 1.0, AppColors.accentGreen),
                 const SizedBox(height: 8),
@@ -282,6 +276,7 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
   // ================= 3. FINANCE PROGRESS =================
   Widget _buildFinanceProgressTab() {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final profile = ProfileService.instance;
     final cur = profile.currencySymbol;
 
@@ -311,17 +306,12 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
           ),
           const SizedBox(height: 14),
 
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.secondary.withValues(alpha: 0.25)),
-            ),
+          GlassCard(
+            borderColor: AppColors.secondary.withValues(alpha: 0.25),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Cash Flow Comparison', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                Text('Cash Flow Comparison', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark))),
                 const SizedBox(height: 12),
                 _buildMacroBar('Total Inflow / Income', '$cur ${inc.toStringAsFixed(0)}', 1.0, AppColors.accentGreen),
                 const SizedBox(height: 8),
@@ -338,6 +328,7 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
   // ================= 4. STUDY PROGRESS =================
   Widget _buildStudyProgressTab() {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final studyService = StudyEnglishService.instance;
 
     return SingleChildScrollView(
@@ -354,17 +345,12 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
           ),
           const SizedBox(height: 14),
 
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.accentAmber.withValues(alpha: 0.25)),
-            ),
+          GlassCard(
+            borderColor: AppColors.accentAmber.withValues(alpha: 0.25),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Subjects Mastered Breakdown', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                Text('Subjects Mastered Breakdown', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark))),
                 const SizedBox(height: 12),
                 ...studyService.subjects.map((sub) {
                   return Padding(
@@ -378,21 +364,16 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
           const SizedBox(height: 14),
 
           if (_studyLogs.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.primaryGlow.withValues(alpha: 0.25)),
-              ),
+            GlassCard(
+              borderColor: AppColors.primaryGlow.withValues(alpha: 0.25),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Recent Focus Sessions', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                      Text('${_studyLogs.length} logged', style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                      Text('Recent Focus Sessions', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark))),
+                      Text('${_studyLogs.length} logged', style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark))),
                     ],
                   ),
                   const SizedBox(height: 10),
@@ -408,7 +389,7 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text('$subject${topic.isNotEmpty ? " • $topic" : ""}',
-                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary(isDark)),
                                 overflow: TextOverflow.ellipsis),
                           ),
                           Text('$duration min', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.accentAmber)),
@@ -428,6 +409,7 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
   // ================= 5. ENGLISH PROGRESS =================
   Widget _buildEnglishProgressTab() {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final engService = StudyEnglishService.instance;
     final totalVocab = engService.vocabularyList.length;
     final masteredVocab = engService.vocabularyList.where((v) => v.status == VocabularyStatus.learned).length;
@@ -446,17 +428,12 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
           ),
           const SizedBox(height: 14),
 
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
-            ),
+          GlassCard(
+            borderColor: AppColors.primary.withValues(alpha: 0.25),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Linguistic Proficiency Breakdown', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                Text('Linguistic Proficiency Breakdown', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark))),
                 const SizedBox(height: 12),
                 _buildMacroBar('Active Vocabulary Retention', '$masteredVocab Words', totalVocab > 0 ? (masteredVocab / totalVocab) : 0.5, AppColors.primaryGlow),
                 const SizedBox(height: 8),
@@ -476,22 +453,18 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
 
   Widget _buildProgressMetricCard(String label, String value, String sub, Color color) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
+      child: GlassCard(
+        borderColor: color.withValues(alpha: 0.35),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: TextStyle(fontSize: 11, color: theme.hintColor, fontWeight: FontWeight.bold)),
+            Text(label, style: TextStyle(fontSize: 11, color: AppColors.textSecondary(isDark), fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
             Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: color)),
             const SizedBox(height: 2),
-            Text(sub, style: TextStyle(fontSize: 10.5, color: theme.hintColor), overflow: TextOverflow.ellipsis),
+            Text(sub, style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary(isDark)), overflow: TextOverflow.ellipsis),
           ],
         ),
       ),

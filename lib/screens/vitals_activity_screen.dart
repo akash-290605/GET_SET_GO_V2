@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/profile_service.dart';
 import '../services/theme_service.dart';
+import '../widgets/glass_card.dart';
 
 class DailyActivityAndVitalsScreen extends StatefulWidget {
   final int initialTabIndex;
@@ -210,6 +211,7 @@ class _DailyActivityAndVitalsScreenState extends State<DailyActivityAndVitalsScr
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Activity, Vitals & Hydration', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
@@ -259,14 +261,8 @@ class _DailyActivityAndVitalsScreenState extends State<DailyActivityAndVitalsScr
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Circular / Hero Progress Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.accentAmber.withValues(alpha: 0.3)),
-            ),
+          GlassCard(
+            borderColor: AppColors.accentAmber.withValues(alpha: 0.35),
             child: Column(
               children: [
                 Row(
@@ -381,13 +377,8 @@ class _DailyActivityAndVitalsScreenState extends State<DailyActivityAndVitalsScr
           const SizedBox(height: 16),
 
           // Steps Pacing & Cadence Advice Card
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: theme.dividerColor.withValues(alpha: 0.15)),
-            ),
+          GlassCard(
+            borderColor: AppColors.accentAmber.withValues(alpha: 0.25),
             child: Row(
               children: [
                 Container(
@@ -451,14 +442,8 @@ class _DailyActivityAndVitalsScreenState extends State<DailyActivityAndVitalsScr
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Active Minutes Hero Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.accentBlue.withValues(alpha: 0.3)),
-            ),
+          GlassCard(
+            borderColor: AppColors.accentBlue.withValues(alpha: 0.35),
             child: Column(
               children: [
                 Row(
@@ -560,13 +545,8 @@ class _DailyActivityAndVitalsScreenState extends State<DailyActivityAndVitalsScr
           const SizedBox(height: 20),
 
           // Live Workout / Activity Stopwatch
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.primaryGlow.withValues(alpha: 0.3)),
-            ),
+          GlassCard(
+            borderColor: AppColors.primaryGlow.withValues(alpha: 0.35),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -697,14 +677,8 @@ class _DailyActivityAndVitalsScreenState extends State<DailyActivityAndVitalsScr
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Hydration Hero Reservoir Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.accentBlue.withValues(alpha: 0.4)),
-            ),
+          GlassCard(
+            borderColor: AppColors.accentBlue.withValues(alpha: 0.35),
             child: Column(
               children: [
                 Row(
@@ -856,13 +830,8 @@ class _DailyActivityAndVitalsScreenState extends State<DailyActivityAndVitalsScr
           const SizedBox(height: 16),
 
           // Hydration Schedule Timeline
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: theme.dividerColor.withValues(alpha: 0.15)),
-            ),
+          GlassCard(
+            borderColor: AppColors.accentBlue.withValues(alpha: 0.25),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -992,13 +961,8 @@ class _DailyActivityAndVitalsScreenState extends State<DailyActivityAndVitalsScr
           const SizedBox(height: 20),
 
           // Multi-metric Comparison Graph
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.primaryGlow.withValues(alpha: 0.3)),
-            ),
+          GlassCard(
+            borderColor: AppColors.primaryGlow.withValues(alpha: 0.35),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1065,13 +1029,8 @@ class _DailyActivityAndVitalsScreenState extends State<DailyActivityAndVitalsScr
           const SizedBox(height: 20),
 
           // AI Synthesis & Correlation Insights Card
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.accentPurple.withValues(alpha: 0.35)),
-            ),
+          GlassCard(
+            borderColor: AppColors.accentPurple.withValues(alpha: 0.35),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1124,13 +1083,8 @@ class _DailyActivityAndVitalsScreenState extends State<DailyActivityAndVitalsScr
     required Color color,
     required ThemeData theme,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-      ),
+    return GlassCard(
+      borderColor: color.withValues(alpha: 0.35),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1214,13 +1168,8 @@ class _DailyActivityAndVitalsScreenState extends State<DailyActivityAndVitalsScr
   }) {
     final maxVal = data.isEmpty ? targetValue : (data.reduce((a, b) => a > b ? a : b).toDouble() * 1.15).clamp(targetValue * 1.1, double.infinity);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.15)),
-      ),
+    return GlassCard(
+      borderColor: barColor.withValues(alpha: 0.3),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

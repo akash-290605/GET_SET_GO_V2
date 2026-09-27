@@ -9,42 +9,59 @@ enum AppThemeMode {
 
 class AppColors {
   // Brand Accents
-  static const Color primary = Color(0xFF8B5CF6); // Electric Violet
-  static const Color primaryGlow = Color(0xFFA78BFA);
-  static const Color secondary = Color(0xFF06B6D4); // Cyber Cyan
+  static const Color primary = Color(0xFF2563EB); // Royal Blue
+  static const Color primaryGlow = Color(0xFF3B82F6); // Bright Blue
+  static const Color secondary = Color(0xFF06B6D4); // Cyan
   static const Color secondaryGlow = Color(0xFF22D3EE);
-  static const Color accentGreen = Color(0xFF10B981); // Emerald Green
-  static const Color accentAmber = Color(0xFFF59E0B); // Sunset Amber
-  static const Color accentRose = Color(0xFFF43F5E); // Radiant Rose
-  static const Color accentBlue = Color(0xFF3B82F6); // Cosmic Blue
-  static const Color accentPurple = Color(0xFFC084FC); // Soft Lilac
+  static const Color purple = Color(0xFF7C3AED); // Violet / Purple
+  static const Color purpleGlow = Color(0xFFA78BFA);
+  static const Color accentGreen = Color(0xFF16A34A); // Emerald Green / Success
+  static const Color accentAmber = Color(0xFFF59E0B); // Amber / Warning
+  static const Color accentRose = Color(0xFFDC2626); // Crimson / Error
+  static const Color accentBlue = Color(0xFF2563EB); // Royal Blue
 
-  // Neutral / Surface tokens
-  static const Color background = Color(0xFF090D18);
-  static const Color surface = Color(0xFF11182B);
-  static const Color surfaceElevated = Color(0xFF18223C);
-  static const Color surfaceHighlight = Color(0xFF1E2C4D);
-  static const Color borderLight = Color(0x1FFFFFFF);
-  static const Color borderGlow = Color(0x408B5CF6);
-  static const Color textMuted = Color(0xFF94A3B8);
+  // Light Mode Color System
+  static const Color lightBackground = Color(0xFFF5F9FF);
+  static const Color lightSurface = Color(0xFFFFFFFF);
+  static const Color lightSurfaceElevated = Color(0xFFF8FAFC);
+  static const Color lightSurfaceHighlight = Color(0xFFEEF2F6);
+  static const Color lightBorder = Color(0x2664748B); // rgba(100,116,139,0.15)
+  static const Color lightTextPrimary = Color(0xFF172033);
+  static const Color lightTextSecondary = Color(0xFF64748B);
+  static const Color lightTextMuted = Color(0xFF94A3B8);
 
-  // Dark Palette
+  // Dark Mode Palette
   static const Color darkBackground = Color(0xFF090D18);
   static const Color darkSurface = Color(0xFF11182B);
   static const Color darkSurfaceElevated = Color(0xFF18223C);
   static const Color darkSurfaceHighlight = Color(0xFF1E2C4D);
   static const Color darkBorder = Color(0x24FFFFFF);
-  static const Color darkTextMuted = Color(0xFF94A3B8);
   static const Color darkTextPrimary = Colors.white;
+  static const Color darkTextSecondary = Color(0xFFCBD5E1);
+  static const Color darkTextMuted = Color(0xFF94A3B8);
 
-  // Light Palette
-  static const Color lightBackground = Color(0xFFF8FAFC);
-  static const Color lightSurface = Color(0xFFFFFFFF);
-  static const Color lightSurfaceElevated = Color(0xFFF1F5F9);
-  static const Color lightSurfaceHighlight = Color(0xFFE2E8F0);
-  static const Color lightBorder = Color(0x1F0F172A);
-  static const Color lightTextMuted = Color(0xFF64748B);
-  static const Color lightTextPrimary = Color(0xFF0F172A);
+  // Static Legacy / Default Tokens (for const constructors)
+  static const Color surface = darkSurface;
+  static const Color surfaceElevated = darkSurfaceElevated;
+  static const Color surfaceHighlight = darkSurfaceHighlight;
+  static const Color textMuted = darkTextMuted;
+  static const Color accentPurple = purple;
+  static const Color purpleAccent = purple;
+  static const Color borderLight = lightBorder;
+  static const Color borderGlow = Color(0x402563EB);
+  static const Color textMutedLegacy = darkTextMuted;
+
+  // Dynamic Theme Helpers
+  static Color background(bool isDark) => isDark ? darkBackground : lightBackground;
+  static Color getSurface(bool isDark) => isDark ? darkSurface : lightSurface;
+  static Color getSurfaceElevated(bool isDark) => isDark ? darkSurfaceElevated : lightSurfaceElevated;
+  static Color cardBackground(bool isDark) => isDark 
+      ? const Color(0xFF11182B).withValues(alpha: 0.82) 
+      : Colors.white.withValues(alpha: 0.88);
+  static Color cardBorder(bool isDark) => isDark ? darkBorder : lightBorder;
+  static Color textPrimary(bool isDark) => isDark ? darkTextPrimary : lightTextPrimary;
+  static Color textSecondary(bool isDark) => isDark ? darkTextSecondary : lightTextSecondary;
+  static Color textMutedDynamic(bool isDark) => isDark ? darkTextMuted : lightTextMuted;
 }
 
 class ThemeService extends ChangeNotifier {
@@ -106,6 +123,7 @@ class ThemeService extends ChangeNotifier {
       useMaterial3: true,
       brightness: Brightness.dark,
       scaffoldBackgroundColor: AppColors.darkBackground,
+      canvasColor: Colors.transparent,
       cardColor: AppColors.darkSurface,
       dividerColor: AppColors.darkBorder,
       colorScheme: const ColorScheme.dark(
@@ -143,6 +161,7 @@ class ThemeService extends ChangeNotifier {
       useMaterial3: true,
       brightness: Brightness.light,
       scaffoldBackgroundColor: AppColors.lightBackground,
+      canvasColor: Colors.transparent,
       cardColor: AppColors.lightSurface,
       dividerColor: AppColors.lightBorder,
       colorScheme: const ColorScheme.light(

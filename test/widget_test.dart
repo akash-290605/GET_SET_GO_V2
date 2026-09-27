@@ -4,7 +4,7 @@ import 'package:flutter_application_1/main.dart';
 void main() {
   testWidgets('App renders branding header, dashboard metrics, and bottom navigation correctly', (WidgetTester tester) async {
     await tester.pumpWidget(const GetSetGoApp());
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
 
     // Verify GET SET GO branding is present
     expect(find.text('GET SET GO'), findsWidgets);

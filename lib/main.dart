@@ -21,6 +21,7 @@ import 'screens/discipline_goals_screen.dart';
 import 'screens/vitals_activity_screen.dart';
 import 'widgets/account_cloud_modal.dart';
 import 'widgets/global_search_dialog.dart';
+import 'widgets/live_animated_background.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -117,7 +118,6 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final isDark = ThemeService.instance.isDarkMode(context);
     final profile = ProfileService.instance;
     final isDesktop = MediaQuery.of(context).size.width >= 900;
@@ -135,162 +135,205 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     ];
 
     if (isDesktop) {
-      // Desktop / Wide screen hybrid shell with collapsible sidebar
-      return Scaffold(
-        body: Row(
-          children: [
-            _buildDesktopSidebar(context, isDark),
-            Expanded(
-              child: Column(
-                children: [
-                  _buildDesktopTopBar(context, isDark, profile),
-                  Expanded(
-                    child: IndexedStack(
-                      index: _currentIndex.clamp(0, screens.length - 1),
-                      children: screens,
+      // Desktop / Wide screen hybrid shell with collapsible sidebar & live animated background
+      return LiveAnimatedBackground(
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: Row(
+            children: [
+              _buildDesktopSidebar(context, isDark),
+              Expanded(
+                child: Column(
+                  children: [
+                    _buildDesktopTopBar(context, isDark, profile),
+                    Expanded(
+                      child: IndexedStack(
+                        index: _currentIndex.clamp(0, screens.length - 1),
+                        children: screens,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     }
 
     // Mobile / Tablet compact layout with top bar & bottom navigation
-    return Scaffold(
-      appBar: AppBar(
-        leading: Builder(
-          builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu_rounded),
-            tooltip: 'Navigation Menu',
-            onPressed: () => Scaffold.of(ctx).openDrawer(),
+    return LiveAnimatedBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: isDark
+              ? const Color(0xFF11182B).withValues(alpha: 0.85)
+              : Colors.white.withValues(alpha: 0.90),
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          leading: Builder(
+            builder: (ctx) => IconButton(
+              icon: Icon(Icons.menu_rounded, color: AppColors.textPrimary(isDark)),
+              tooltip: 'Navigation Menu',
+              onPressed: () => Scaffold.of(ctx).openDrawer(),
+            ),
           ),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.bolt_rounded, size: 16, color: AppColors.accentAmber),
+                    SizedBox(width: 5),
+                    Text(
+                      'GET SET GO',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                        letterSpacing: 1.1,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              child: const Row(
-                children: [
-                  Icon(Icons.bolt_rounded, size: 16, color: AppColors.accentAmber),
-                  SizedBox(width: 4),
-                  Text(
-                    'GET SET GO',
-                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1.1, color: AppColors.primaryGlow),
-                  ),
-                ],
-              ),
+            ],
+          ),
+          actions: [
+            // Search shortcut
+            IconButton(
+              icon: Icon(Icons.search_rounded, size: 22, color: AppColors.textPrimary(isDark)),
+              tooltip: 'Global Search',
+              onPressed: () => showGlobalSearchDialog(context, onNavigateTab: _onTabSelected),
+            ),
+            // AI Shortcut
+            IconButton(
+              icon: const Icon(Icons.psychology_rounded, color: AppColors.accentAmber, size: 22),
+              tooltip: 'AI Life Coach',
+              onPressed: () => _onTabSelected(6),
+            ),
+            // Quick theme toggle
+            IconButton(
+              icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, size: 20, color: AppColors.textPrimary(isDark)),
+              tooltip: isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme',
+              onPressed: () {
+                ThemeService.instance.setThemeMode(isDark ? AppThemeMode.light : AppThemeMode.dark);
+              },
+            ),
+            // Cloud Sync & Account
+            IconButton(
+              icon: Icon(Icons.cloud_sync_outlined, size: 22, color: AppColors.textPrimary(isDark)),
+              tooltip: 'Account & Cloud Sync',
+              onPressed: () => showAccountCloudModal(context),
             ),
           ],
         ),
-        actions: [
-          // Search shortcut
-          IconButton(
-            icon: const Icon(Icons.search_rounded, size: 22),
-            tooltip: 'Global Search',
-            onPressed: () => showGlobalSearchDialog(context, onNavigateTab: _onTabSelected),
+        drawer: _buildDrawer(context, isDark),
+        body: IndexedStack(
+          index: _currentIndex.clamp(0, screens.length - 1),
+          children: screens,
+        ),
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: isDark
+                ? const Color(0xFF11182B).withValues(alpha: 0.90)
+                : Colors.white.withValues(alpha: 0.92),
+            border: Border(
+              top: BorderSide(
+                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                width: 1,
+              ),
+            ),
           ),
-          // AI Shortcut
-          IconButton(
-            icon: const Icon(Icons.psychology_rounded, color: AppColors.accentAmber, size: 22),
-            tooltip: 'AI Life Coach',
-            onPressed: () => _onTabSelected(6),
-          ),
-          // Quick theme toggle
-          IconButton(
-            icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, size: 20),
-            tooltip: isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme',
-            onPressed: () {
-              ThemeService.instance.setThemeMode(isDark ? AppThemeMode.light : AppThemeMode.dark);
+          child: NavigationBar(
+            selectedIndex: _currentIndex.clamp(0, 5),
+            onDestinationSelected: (idx) {
+              if (idx == 4) {
+                _onTabSelected(4); // Study
+              } else if (idx == 5) {
+                _onTabSelected(6); // AI Coach
+              } else {
+                _onTabSelected(idx);
+              }
             },
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            indicatorColor: AppColors.primary.withValues(alpha: 0.18),
+            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded, color: AppColors.primary),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.fitness_center_outlined),
+                selectedIcon: Icon(Icons.fitness_center_rounded, color: AppColors.primary),
+                label: 'Workout',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.restaurant_outlined),
+                selectedIcon: Icon(Icons.restaurant_rounded, color: AppColors.accentGreen),
+                label: 'Nutrition',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.account_balance_wallet_outlined),
+                selectedIcon: Icon(Icons.account_balance_wallet_rounded, color: AppColors.secondary),
+                label: 'Finance',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.school_outlined),
+                selectedIcon: Icon(Icons.school_rounded, color: AppColors.purple),
+                label: 'Study',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.psychology_outlined),
+                selectedIcon: Icon(Icons.psychology_rounded, color: AppColors.primary),
+                label: 'AI Coach',
+              ),
+            ],
           ),
-          // Cloud Sync & Account
-          IconButton(
-            icon: const Icon(Icons.cloud_sync_outlined, size: 22),
-            tooltip: 'Account & Cloud Sync',
-            onPressed: () => showAccountCloudModal(context),
-          ),
-        ],
-      ),
-      drawer: _buildDrawer(context),
-      body: IndexedStack(
-        index: _currentIndex.clamp(0, screens.length - 1),
-        children: screens,
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex.clamp(0, 5),
-        onDestinationSelected: (idx) {
-          if (idx == 4) {
-            _onTabSelected(4); // Study
-          } else if (idx == 5) {
-            _onTabSelected(6); // AI Coach
-          } else {
-            _onTabSelected(idx);
-          }
-        },
-        backgroundColor: theme.scaffoldBackgroundColor,
-        elevation: 8,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded, color: AppColors.primaryGlow),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.fitness_center_outlined),
-            selectedIcon: Icon(Icons.fitness_center_rounded, color: AppColors.primaryGlow),
-            label: 'Workout',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.restaurant_outlined),
-            selectedIcon: Icon(Icons.restaurant_rounded, color: AppColors.accentGreen),
-            label: 'Nutrition',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            selectedIcon: Icon(Icons.account_balance_wallet_rounded, color: AppColors.secondary),
-            label: 'Finance',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.school_outlined),
-            selectedIcon: Icon(Icons.school_rounded, color: AppColors.accentAmber),
-            label: 'Study',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.psychology_outlined),
-            selectedIcon: Icon(Icons.psychology_rounded, color: AppColors.primaryGlow),
-            label: 'AI Coach',
-          ),
-        ],
+        ),
       ),
     );
   }
 
   // ================= DESKTOP SIDEBAR =================
   Widget _buildDesktopSidebar(BuildContext context, bool isDark) {
-    final theme = Theme.of(context);
-    final width = _isSidebarCollapsed ? 76.0 : 250.0;
+    final width = _isSidebarCollapsed ? 78.0 : 256.0;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
       width: width,
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        border: Border(right: BorderSide(color: theme.dividerColor.withValues(alpha: 0.12))),
+        color: isDark
+            ? const Color(0xFF11182B).withValues(alpha: 0.88)
+            : Colors.white.withValues(alpha: 0.88),
+        border: Border(
+          right: BorderSide(
+            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          ),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black.withValues(alpha: 0.2) : const Color(0xFF1E40AF).withValues(alpha: 0.04),
+            blurRadius: 16,
+            offset: const Offset(4, 0),
+          ),
+        ],
       ),
       child: Column(
         children: [
           // Logo & Collapse Button
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
             child: Row(
               mainAxisAlignment: _isSidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.spaceBetween,
               children: [
@@ -298,68 +341,96 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(6),
+                        padding: const EdgeInsets.all(7),
                         decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          borderRadius: BorderRadius.circular(8),
+                          gradient: const LinearGradient(
+                            colors: [AppColors.primary, AppColors.purple],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.35),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: const Icon(Icons.bolt_rounded, size: 18, color: Colors.white),
                       ),
                       const SizedBox(width: 10),
-                      const Text(
+                      Text(
                         'GET SET GO',
-                        style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.1, color: AppColors.primaryGlow),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                          letterSpacing: 1.1,
+                          color: AppColors.textPrimary(isDark),
+                        ),
                       ),
                     ],
                   ),
                 IconButton(
-                  icon: Icon(_isSidebarCollapsed ? Icons.chevron_right_rounded : Icons.chevron_left_rounded, size: 20),
+                  icon: Icon(
+                    _isSidebarCollapsed ? Icons.chevron_right_rounded : Icons.chevron_left_rounded,
+                    size: 20,
+                    color: AppColors.textSecondary(isDark),
+                  ),
                   tooltip: _isSidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar',
                   onPressed: () => setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1),
+          Divider(height: 1, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
 
           // Navigation List
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
               children: [
-                _buildSidebarNavTile(0, 'Dashboard', Icons.home_rounded),
-                _buildSidebarNavTile(1, 'Fitness & Workouts', Icons.fitness_center_rounded),
-                _buildSidebarNavTile(2, 'Food & Nutrition AI', Icons.restaurant_rounded),
-                _buildSidebarNavTile(3, 'Finance & Budget', Icons.account_balance_wallet_rounded),
-                _buildSidebarNavTile(4, 'Study & Academics', Icons.school_rounded),
-                _buildSidebarNavTile(5, 'English Mastery', Icons.translate_rounded),
-                _buildSidebarNavTile(6, 'AI Life Coach', Icons.psychology_rounded),
-                _buildSidebarNavTile(7, 'Progress & Analytics', Icons.analytics_rounded),
-                const Divider(height: 20),
+                _buildSidebarNavTile(0, 'Dashboard', Icons.home_rounded, isDark),
+                _buildSidebarNavTile(1, 'Fitness & Workouts', Icons.fitness_center_rounded, isDark),
+                _buildSidebarNavTile(2, 'Food & Nutrition AI', Icons.restaurant_rounded, isDark),
+                _buildSidebarNavTile(3, 'Finance & Budget', Icons.account_balance_wallet_rounded, isDark),
+                _buildSidebarNavTile(4, 'Study & Academics', Icons.school_rounded, isDark),
+                _buildSidebarNavTile(5, 'English Mastery', Icons.translate_rounded, isDark),
+                _buildSidebarNavTile(6, 'AI Life Coach', Icons.psychology_rounded, isDark),
+                _buildSidebarNavTile(7, 'Progress & Analytics', Icons.analytics_rounded, isDark),
+                Divider(height: 24, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
                 if (!_isSidebarCollapsed)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    child: Text('MORE TOOLS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: theme.hintColor, letterSpacing: 1.1)),
+                    child: Text(
+                      'MORE TOOLS',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textSecondary(isDark),
+                        letterSpacing: 1.1,
+                      ),
+                    ),
                   ),
-                _buildSidebarActionTile('Vitals & Water', Icons.directions_walk_rounded, AppColors.accentBlue, () {
+                _buildSidebarActionTile('Vitals & Water', Icons.directions_walk_rounded, AppColors.accentBlue, isDark, () {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyActivityAndVitalsScreen()));
                 }),
-                _buildSidebarActionTile('Strict Goals', Icons.track_changes_rounded, AppColors.accentRose, () {
+                _buildSidebarActionTile('Strict Goals', Icons.track_changes_rounded, AppColors.accentRose, isDark, () {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const DisciplineGoalsScreen()));
                 }),
               ],
             ),
           ),
 
-          const Divider(height: 1),
-          _buildSidebarNavTile(8, 'Settings', Icons.settings_rounded),
+          Divider(height: 1, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+          _buildSidebarNavTile(8, 'Settings', Icons.settings_rounded, isDark),
           const SizedBox(height: 10),
         ],
       ),
     );
   }
 
-  Widget _buildSidebarNavTile(int index, String title, IconData icon) {
+  Widget _buildSidebarNavTile(int index, String title, IconData icon, bool isDark) {
     final isSelected = _currentIndex == index;
 
     return Padding(
@@ -370,14 +441,22 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         child: Container(
           padding: EdgeInsets.symmetric(horizontal: _isSidebarCollapsed ? 0 : 14, vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.primary.withValues(alpha: 0.18) : Colors.transparent,
+            color: isSelected
+                ? AppColors.primary.withValues(alpha: isDark ? 0.22 : 0.12)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
-            border: isSelected ? Border.all(color: AppColors.primary.withValues(alpha: 0.4)) : null,
+            border: isSelected
+                ? Border.all(color: AppColors.primary.withValues(alpha: 0.35))
+                : null,
           ),
           child: Row(
             mainAxisAlignment: _isSidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
             children: [
-              Icon(icon, size: 20, color: isSelected ? AppColors.primaryGlow : AppColors.textMuted),
+              Icon(
+                icon,
+                size: 20,
+                color: isSelected ? AppColors.primary : AppColors.textSecondary(isDark),
+              ),
               if (!_isSidebarCollapsed) ...[
                 const SizedBox(width: 12),
                 Expanded(
@@ -386,7 +465,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                     style: TextStyle(
                       fontSize: 13.5,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                      color: isSelected ? AppColors.primaryGlow : null,
+                      color: isSelected
+                          ? AppColors.primary
+                          : AppColors.textPrimary(isDark),
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -399,7 +480,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     );
   }
 
-  Widget _buildSidebarActionTile(String title, IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildSidebarActionTile(String title, IconData icon, Color color, bool isDark, VoidCallback onTap) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: InkWell(
@@ -414,7 +495,15 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
               if (!_isSidebarCollapsed) ...[
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textPrimary(isDark),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ],
@@ -426,13 +515,17 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   // ================= DESKTOP TOP BAR =================
   Widget _buildDesktopTopBar(BuildContext context, bool isDark, ProfileService profile) {
-    final theme = Theme.of(context);
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        border: Border(bottom: BorderSide(color: theme.dividerColor.withValues(alpha: 0.12))),
+        color: isDark
+            ? const Color(0xFF11182B).withValues(alpha: 0.88)
+            : Colors.white.withValues(alpha: 0.88),
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          ),
+        ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -441,7 +534,11 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
             children: [
               Text(
                 '$_timeGreeting, ${profile.userName} 👋',
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary(isDark),
+                ),
               ),
             ],
           ),
@@ -455,15 +552,25 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                   width: 260,
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
-                    color: theme.scaffoldBackgroundColor,
+                    color: isDark
+                        ? AppColors.darkSurfaceElevated
+                        : AppColors.lightSurfaceElevated,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: theme.dividerColor.withValues(alpha: 0.15)),
+                    border: Border.all(
+                      color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                    ),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.search_rounded, size: 18, color: AppColors.textMuted),
+                      Icon(Icons.search_rounded, size: 18, color: AppColors.textSecondary(isDark)),
                       const SizedBox(width: 8),
-                      Text('Search anything...', style: TextStyle(fontSize: 12.5, color: theme.hintColor)),
+                      Text(
+                        'Search anything...',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: AppColors.textSecondary(isDark),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -477,6 +584,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  elevation: 0,
                 ),
                 onPressed: () => _onTabSelected(6),
                 icon: const Icon(Icons.psychology_rounded, size: 18),
@@ -486,7 +594,11 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
               // Theme Switcher
               IconButton(
-                icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, size: 20),
+                icon: Icon(
+                  isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                  size: 20,
+                  color: AppColors.textPrimary(isDark),
+                ),
                 tooltip: isDark ? 'Light Theme' : 'Dark Theme',
                 onPressed: () => ThemeService.instance.setThemeMode(isDark ? AppThemeMode.light : AppThemeMode.dark),
               ),
@@ -494,7 +606,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
               // Cloud Sync
               IconButton(
-                icon: const Icon(Icons.cloud_sync_outlined, size: 22),
+                icon: Icon(Icons.cloud_sync_outlined, size: 22, color: AppColors.textPrimary(isDark)),
                 tooltip: 'Account & Cloud Sync',
                 onPressed: () => showAccountCloudModal(context),
               ),
@@ -517,20 +629,25 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   }
 
   // ================= MOBILE DRAWER =================
-  Widget _buildDrawer(BuildContext context) {
-    final theme = Theme.of(context);
+  Widget _buildDrawer(BuildContext context, bool isDark) {
     final profile = ProfileService.instance;
 
     return Drawer(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
       child: SafeArea(
         child: Column(
           children: [
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: theme.cardColor,
-                border: Border(bottom: BorderSide(color: theme.dividerColor.withValues(alpha: 0.1))),
+                color: isDark
+                    ? const Color(0xFF11182B).withValues(alpha: 0.90)
+                    : Colors.white.withValues(alpha: 0.90),
+                border: Border(
+                  bottom: BorderSide(
+                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                  ),
+                ),
               ),
               child: Row(
                 children: [
@@ -547,8 +664,20 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(profile.userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        Text(profile.fitnessGoal, style: TextStyle(fontSize: 12, color: theme.hintColor), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(
+                          profile.userName,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: AppColors.textPrimary(isDark),
+                          ),
+                        ),
+                        Text(
+                          profile.fitnessGoal,
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ],
                     ),
                   ),
@@ -559,22 +688,33 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
               child: ListView(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
-                  _buildDrawerItem(icon: Icons.dashboard_outlined, title: 'Main Dashboard', index: 0),
-                  _buildDrawerItem(icon: Icons.fitness_center_rounded, title: '7-Day Workout Planner', index: 1),
-                  _buildDrawerItem(icon: Icons.restaurant_rounded, title: 'Food Tracking & Nutrition AI', index: 2),
-                  _buildDrawerItem(icon: Icons.account_balance_wallet_rounded, title: 'Finance & Budget', index: 3),
-                  _buildDrawerItem(icon: Icons.school_rounded, title: 'Study Tracker & 7-Day Plan', index: 4),
-                  _buildDrawerItem(icon: Icons.translate_rounded, title: 'English Mastery Suite', index: 5),
-                  _buildDrawerItem(icon: Icons.psychology_rounded, title: 'AI Life & Performance Coach', index: 6),
-                  _buildDrawerItem(icon: Icons.analytics_rounded, title: 'Progress & Analytics', index: 7),
-                  const Divider(height: 24),
+                  _buildDrawerItem(icon: Icons.dashboard_outlined, title: 'Main Dashboard', index: 0, isDark: isDark),
+                  _buildDrawerItem(icon: Icons.fitness_center_rounded, title: '7-Day Workout Planner', index: 1, isDark: isDark),
+                  _buildDrawerItem(icon: Icons.restaurant_rounded, title: 'Food Tracking & Nutrition AI', index: 2, isDark: isDark),
+                  _buildDrawerItem(icon: Icons.account_balance_wallet_rounded, title: 'Finance & Budget', index: 3, isDark: isDark),
+                  _buildDrawerItem(icon: Icons.school_rounded, title: 'Study Tracker & 7-Day Plan', index: 4, isDark: isDark),
+                  _buildDrawerItem(icon: Icons.translate_rounded, title: 'English Mastery Suite', index: 5, isDark: isDark),
+                  _buildDrawerItem(icon: Icons.psychology_rounded, title: 'AI Life & Performance Coach', index: 6, isDark: isDark),
+                  _buildDrawerItem(icon: Icons.analytics_rounded, title: 'Progress & Analytics', index: 7, isDark: isDark),
+                  Divider(height: 24, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    child: Text('MORE TOOLS & ARCHIVES', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: theme.hintColor, letterSpacing: 1.1)),
+                    child: Text(
+                      'MORE TOOLS & ARCHIVES',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textSecondary(isDark),
+                        letterSpacing: 1.1,
+                      ),
+                    ),
                   ),
                   ListTile(
                     leading: const Icon(Icons.directions_walk_rounded, color: AppColors.accentAmber),
-                    title: const Text('Steps, Active Hrs & Water Hub', style: TextStyle(fontSize: 14)),
+                    title: Text(
+                      'Steps, Active Hrs & Water Hub',
+                      style: TextStyle(fontSize: 14, color: AppColors.textPrimary(isDark)),
+                    ),
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyActivityAndVitalsScreen()));
@@ -582,7 +722,10 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                   ),
                   ListTile(
                     leading: const Icon(Icons.track_changes_rounded, color: AppColors.accentRose),
-                    title: const Text('Strict Goals & Apology Archive', style: TextStyle(fontSize: 14)),
+                    title: Text(
+                      'Strict Goals & Apology Archive',
+                      style: TextStyle(fontSize: 14, color: AppColors.textPrimary(isDark)),
+                    ),
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const DisciplineGoalsScreen()));
@@ -590,7 +733,10 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                   ),
                   ListTile(
                     leading: const Icon(Icons.cloud_sync_rounded, color: AppColors.accentBlue),
-                    title: const Text('Cloud Sync & Google Auth', style: TextStyle(fontSize: 14)),
+                    title: Text(
+                      'Cloud Sync & Google Auth',
+                      style: TextStyle(fontSize: 14, color: AppColors.textPrimary(isDark)),
+                    ),
                     onTap: () {
                       Navigator.pop(context);
                       showAccountCloudModal(context);
@@ -598,7 +744,10 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                   ),
                   ListTile(
                     leading: const Icon(Icons.settings_outlined, color: AppColors.primary),
-                    title: const Text('Settings & Preferences', style: TextStyle(fontSize: 14)),
+                    title: Text(
+                      'Settings & Preferences',
+                      style: TextStyle(fontSize: 14, color: AppColors.textPrimary(isDark)),
+                    ),
                     onTap: () {
                       Navigator.pop(context);
                       _onTabSelected(8);
@@ -613,15 +762,15 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     );
   }
 
-  Widget _buildDrawerItem({required IconData icon, required String title, required int index}) {
+  Widget _buildDrawerItem({required IconData icon, required String title, required int index, required bool isDark}) {
     final isSelected = _currentIndex == index;
     return ListTile(
-      leading: Icon(icon, color: isSelected ? AppColors.primary : null),
+      leading: Icon(icon, color: isSelected ? AppColors.primary : AppColors.textSecondary(isDark)),
       title: Text(
         title,
         style: TextStyle(
           fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-          color: isSelected ? AppColors.primary : null,
+          color: isSelected ? AppColors.primary : AppColors.textPrimary(isDark),
           fontSize: 14,
         ),
       ),

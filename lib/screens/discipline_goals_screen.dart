@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../db_helper.dart';
 import '../models/goal_models.dart';
 import '../services/theme_service.dart';
+import '../widgets/glass_card.dart';
 
 class DisciplineGoalsScreen extends StatefulWidget {
   const DisciplineGoalsScreen({super.key});
@@ -861,6 +862,7 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Strict Discipline & Goals', style: TextStyle(fontWeight: FontWeight.bold)),
         bottom: TabBar(
@@ -960,14 +962,7 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
 
             // Goals List
             if (filtered.isEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(
-                  color: theme.cardColor,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: theme.dividerColor.withValues(alpha: 0.15)),
-                ),
+              GlassCard(
                 child: Column(
                   children: [
                     const Icon(Icons.checklist_rounded, size: 48, color: AppColors.textMuted),
@@ -1004,13 +999,9 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
     required Color color,
   }) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-      ),
+    final isDark = theme.brightness == Brightness.dark;
+    return GlassCard(
+      borderColor: color.withValues(alpha: 0.35),
       child: Row(
         children: [
           Container(
@@ -1023,8 +1014,8 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
-                Text(subtitle, style: TextStyle(fontSize: 11, color: theme.hintColor)),
+                Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppColors.textPrimary(isDark))),
+                Text(subtitle, style: TextStyle(fontSize: 11, color: AppColors.textSecondary(isDark))),
               ],
             ),
           ),
@@ -1034,26 +1025,19 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
   }
 
   Widget _buildGoalCard(GoalItem goal, ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
     final isDone = goal.isCompletedToday;
     final isBroken = goal.isStrict && goal.isStreakBroken;
     final progress = goal.progressPercentage;
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isBroken
-              ? AppColors.accentRose.withValues(alpha: 0.6)
-              : isDone
-                  ? AppColors.accentGreen.withValues(alpha: 0.4)
-                  : goal.isStrict
-                      ? AppColors.accentRose.withValues(alpha: 0.25)
-                      : AppColors.primary.withValues(alpha: 0.25),
-          width: isBroken ? 1.5 : 1,
-        ),
-      ),
+    return GlassCard(
+      borderColor: isBroken
+          ? AppColors.accentRose.withValues(alpha: 0.6)
+          : isDone
+              ? AppColors.accentGreen.withValues(alpha: 0.4)
+              : goal.isStrict
+                  ? AppColors.accentRose.withValues(alpha: 0.25)
+                  : AppColors.primary.withValues(alpha: 0.25),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1162,12 +1146,12 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
                   children: [
                     Text(
                       goal.title,
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Target: ${goal.targetDays} Days • Current Streak: ${goal.currentStreak} Days',
-                      style: TextStyle(fontSize: 12, color: theme.hintColor),
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark)),
                     ),
                   ],
                 ),
@@ -1237,8 +1221,8 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('${(progress * 100).toStringAsFixed(0)}% Complete', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: theme.hintColor)),
-              Text('${goal.currentStreak} / ${goal.targetDays} Days', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              Text('${(progress * 100).toStringAsFixed(0)}% Complete', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textSecondary(isDark))),
+              Text('${goal.currentStreak} / ${goal.targetDays} Days', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark))),
             ],
           ),
           const SizedBox(height: 6),
@@ -1302,11 +1286,11 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
                 child: const Icon(Icons.verified_user_rounded, size: 54, color: AppColors.accentGreen),
               ),
               const SizedBox(height: 16),
-              const Text('Clean Record of Discipline! 🛡️', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+              Text('Clean Record of Discipline! 🛡️', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textPrimary(theme.brightness == Brightness.dark))),
               const SizedBox(height: 6),
               Text(
                 'You have not abandoned any strict discipline goals. Keep your commitments strong and unbreakable!',
-                style: TextStyle(fontSize: 12.5, color: theme.hintColor, height: 1.4),
+                style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary(theme.brightness == Brightness.dark), height: 1.4),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -1315,6 +1299,7 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
       );
     }
 
+    final isDark = theme.brightness == Brightness.dark;
     return RefreshIndicator(
       onRefresh: _loadData,
       child: ListView.separated(
@@ -1325,13 +1310,8 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
           final record = _deletedGoals[index];
           final dateStr = '${record.deletedAt.day.toString().padLeft(2, '0')} ${_getMonthName(record.deletedAt.month)} ${record.deletedAt.year}';
 
-          return Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.accentRose.withValues(alpha: 0.35)),
-            ),
+          return GlassCard(
+            borderColor: AppColors.accentRose.withValues(alpha: 0.35),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1353,7 +1333,7 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
                         ],
                       ),
                     ),
-                    Text(dateStr, style: TextStyle(fontSize: 11, color: theme.hintColor)),
+                    Text(dateStr, style: TextStyle(fontSize: 11, color: AppColors.textSecondary(isDark))),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -1361,14 +1341,14 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
                 // Title & Failed Target
                 Text(
                   record.title,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, decoration: TextDecoration.lineThrough),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, decoration: TextDecoration.lineThrough, color: AppColors.textPrimary(isDark)),
                 ),
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Text('Target was: ${record.targetDays} Days', style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                    Text('Target was: ${record.targetDays} Days', style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark))),
                     const SizedBox(width: 8),
-                    Text('•', style: TextStyle(color: theme.hintColor)),
+                    Text('•', style: TextStyle(color: AppColors.textSecondary(isDark))),
                     const SizedBox(width: 8),
                     Text('Achieved: ${record.streakAchieved} Days', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.accentRose)),
                   ],
@@ -1382,24 +1362,24 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
                     color: theme.dividerColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Text('Cause: ${record.reason}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                  child: Text('Cause: ${record.reason}', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AppColors.textPrimary(isDark))),
                 ),
                 const Divider(height: 20),
 
                 // Apology Letter Content
-                Text('Letter to Self:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: theme.hintColor)),
+                Text('Letter to Self:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textSecondary(isDark))),
                 const SizedBox(height: 4),
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: theme.scaffoldBackgroundColor,
+                    color: isDark ? const Color(0xFF0F172A).withValues(alpha: 0.4) : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: theme.dividerColor.withValues(alpha: 0.15)),
                   ),
                   child: Text(
                     '"${record.apologyLetter}"',
-                    style: const TextStyle(fontSize: 12.5, fontStyle: FontStyle.italic, height: 1.4),
+                    style: TextStyle(fontSize: 12.5, fontStyle: FontStyle.italic, height: 1.4, color: AppColors.textPrimary(isDark)),
                   ),
                 ),
               ],

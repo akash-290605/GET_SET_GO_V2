@@ -5,6 +5,7 @@ import '../models/food_models.dart';
 import '../services/gemini_service.dart';
 import '../services/profile_service.dart';
 import '../services/theme_service.dart';
+import '../widgets/glass_card.dart';
 
 class FoodTrackingScreen extends StatefulWidget {
   const FoodTrackingScreen({super.key});
@@ -1099,26 +1100,14 @@ class _FoodTrackingScreenState extends State<FoodTrackingScreen> with SingleTick
   }
 
   Widget _buildDailyMacroCard(DailyNutritionTarget target, Map<String, double> totals) {
-    final theme = Theme.of(context);
+    final isDark = ThemeService.instance.isDarkMode(context);
     final calCurrent = totals['calories'] ?? 0;
     final calTarget = target.calorieTarget;
     final calPercent = (calTarget > 0 ? (calCurrent / calTarget) : 0.0).clamp(0.0, 1.0);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return GlassCard(
+      borderRadius: 20,
+      border: Border.all(color: AppColors.accentGreen.withValues(alpha: isDark ? 0.3 : 0.2)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1128,14 +1117,14 @@ class _FoodTrackingScreenState extends State<FoodTrackingScreen> with SingleTick
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('TODAY’S NUTRITION INTAKE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: theme.hintColor, letterSpacing: 1.1)),
+                  Text('TODAY’S NUTRITION INTAKE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textSecondary(isDark), letterSpacing: 1.1)),
                   const SizedBox(height: 4),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.baseline,
                     textBaseline: TextBaseline.alphabetic,
                     children: [
-                      Text('${calCurrent.toStringAsFixed(0)} ', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900)),
-                      Text('/ ${calTarget.toStringAsFixed(0)} kcal', style: TextStyle(fontSize: 14, color: theme.hintColor, fontWeight: FontWeight.w600)),
+                      Text('${calCurrent.toStringAsFixed(0)} ', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.textPrimary(isDark))),
+                      Text('/ ${calTarget.toStringAsFixed(0)} kcal', style: TextStyle(fontSize: 14, color: AppColors.textSecondary(isDark), fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ],
@@ -1163,21 +1152,21 @@ class _FoodTrackingScreenState extends State<FoodTrackingScreen> with SingleTick
             child: LinearProgressIndicator(
               value: calPercent,
               minHeight: 8,
-              backgroundColor: theme.dividerColor.withValues(alpha: 0.1),
-              valueColor: AlwaysStoppedAnimation<Color>(calPercent >= 1.0 ? AppColors.accentRose : AppColors.primary),
+              backgroundColor: isDark ? const Color(0x1FFFFFFF) : const Color(0x1F0F172A),
+              valueColor: AlwaysStoppedAnimation<Color>(calPercent >= 1.0 ? AppColors.accentRose : AppColors.accentGreen),
             ),
           ),
           const SizedBox(height: 16),
           // Macro breakdown rows
           Row(
             children: [
-              Expanded(child: _buildMacroMiniBar('Protein', totals['protein'] ?? 0, target.proteinTargetGrams, AppColors.accentGreen, 'g')),
+              Expanded(child: _buildMacroMiniBar('Protein', totals['protein'] ?? 0, target.proteinTargetGrams, AppColors.primary, 'g', isDark)),
               const SizedBox(width: 8),
-              Expanded(child: _buildMacroMiniBar('Carbs', totals['carbs'] ?? 0, target.carbTargetGrams, AppColors.accentAmber, 'g')),
+              Expanded(child: _buildMacroMiniBar('Carbs', totals['carbs'] ?? 0, target.carbTargetGrams, AppColors.accentAmber, 'g', isDark)),
               const SizedBox(width: 8),
-              Expanded(child: _buildMacroMiniBar('Fat', totals['fat'] ?? 0, target.fatTargetGrams, AppColors.accentRose, 'g')),
+              Expanded(child: _buildMacroMiniBar('Fat', totals['fat'] ?? 0, target.fatTargetGrams, AppColors.accentRose, 'g', isDark)),
               const SizedBox(width: 8),
-              Expanded(child: _buildMacroMiniBar('Fiber', totals['fiber'] ?? 0, target.fiberTargetGrams, AppColors.secondary, 'g')),
+              Expanded(child: _buildMacroMiniBar('Fiber', totals['fiber'] ?? 0, target.fiberTargetGrams, AppColors.secondary, 'g', isDark)),
             ],
           ),
         ],
@@ -1185,12 +1174,12 @@ class _FoodTrackingScreenState extends State<FoodTrackingScreen> with SingleTick
     );
   }
 
-  Widget _buildMacroMiniBar(String label, double current, double target, Color color, String unit) {
+  Widget _buildMacroMiniBar(String label, double current, double target, Color color, String unit, bool isDark) {
     final pct = (target > 0 ? (current / target) : 0.0).clamp(0.0, 1.0);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+        color: color.withValues(alpha: isDark ? 0.12 : 0.08),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -1198,7 +1187,10 @@ class _FoodTrackingScreenState extends State<FoodTrackingScreen> with SingleTick
         children: [
           Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
           const SizedBox(height: 2),
-          Text('${current.toStringAsFixed(0)} / ${target.toStringAsFixed(0)}$unit', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          Text(
+            '${current.toStringAsFixed(0)} / ${target.toStringAsFixed(0)}$unit',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary(isDark)),
+          ),
           const SizedBox(height: 4),
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
@@ -1221,47 +1213,33 @@ class _FoodTrackingScreenState extends State<FoodTrackingScreen> with SingleTick
     required Color color,
     required VoidCallback onTap,
   }) {
-    final theme = Theme.of(context);
-    return InkWell(
+    final isDark = ThemeService.instance.isDarkMode(context);
+    return GlassCard(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+      borderRadius: 16,
+      border: Border.all(color: color.withValues(alpha: isDark ? 0.35 : 0.25)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: isDark ? 0.20 : 0.12),
+              borderRadius: BorderRadius.circular(10),
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 22),
-            ),
-            const SizedBox(height: 12),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            const SizedBox(height: 2),
-            Text(subtitle, style: TextStyle(fontSize: 11, color: theme.hintColor)),
-          ],
-        ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(height: 12),
+          Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary(isDark))),
+          const SizedBox(height: 2),
+          Text(subtitle, style: TextStyle(fontSize: 11, color: AppColors.textSecondary(isDark))),
+        ],
       ),
     );
   }
 
   Widget _buildDetectionResultsCard() {
-    final theme = Theme.of(context);
+    final isDark = ThemeService.instance.isDarkMode(context);
     double totalCal = 0;
     double totalPro = 0;
     double totalCarb = 0;
@@ -1274,14 +1252,9 @@ class _FoodTrackingScreenState extends State<FoodTrackingScreen> with SingleTick
       totalFat += item.fat;
     }
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-      ),
+    return GlassCard(
+      borderRadius: 20,
+      border: Border.all(color: AppColors.primary.withValues(alpha: isDark ? 0.35 : 0.25)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1292,11 +1265,14 @@ class _FoodTrackingScreenState extends State<FoodTrackingScreen> with SingleTick
                 children: [
                   const Icon(Icons.auto_awesome_rounded, color: AppColors.accentAmber, size: 20),
                   const SizedBox(width: 8),
-                  Text('Detected Foods (${_detectedItems.length})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text(
+                    'Detected Foods (${_detectedItems.length})',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary(isDark)),
+                  ),
                 ],
               ),
               IconButton(
-                icon: const Icon(Icons.add_rounded),
+                icon: Icon(Icons.add_rounded, color: AppColors.textPrimary(isDark)),
                 tooltip: 'Add another item',
                 onPressed: _addCustomItem,
               ),
@@ -1327,14 +1303,14 @@ class _FoodTrackingScreenState extends State<FoodTrackingScreen> with SingleTick
           // Meal slot selector
           Row(
             children: [
-              const Text('Meal Slot: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              Text('Meal Slot: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary(isDark))),
               const SizedBox(width: 8),
               Wrap(
                 spacing: 6,
                 children: ['Breakfast', 'Lunch', 'Dinner', 'Snack'].map((slot) {
                   final isSelected = _selectedMealSlot == slot;
                   return ChoiceChip(
-                    label: Text(slot, style: TextStyle(fontSize: 12, color: isSelected ? Colors.white : null)),
+                    label: Text(slot, style: TextStyle(fontSize: 12, color: isSelected ? Colors.white : AppColors.textPrimary(isDark))),
                     selected: isSelected,
                     selectedColor: AppColors.primary,
                     onSelected: (val) {
@@ -1345,29 +1321,34 @@ class _FoodTrackingScreenState extends State<FoodTrackingScreen> with SingleTick
               ),
             ],
           ),
-          const Divider(height: 24),
+          const SizedBox(height: 12),
+          Divider(height: 1, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+          const SizedBox(height: 12),
 
           // Items list with +/- Grams adjuster
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _detectedItems.length,
-            separatorBuilder: (_, __) => const Divider(height: 16),
+            separatorBuilder: (_, __) => Divider(height: 16, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
             itemBuilder: (context, index) {
               final item = _detectedItems[index];
               return _buildDetectedItemRow(item, index);
             },
           ),
 
-          const Divider(height: 24),
+          const SizedBox(height: 12),
+          Divider(height: 1, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+          const SizedBox(height: 12),
+
           // Total row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Estimated Total:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              Text('Estimated Total:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary(isDark))),
               Text(
                 '${totalCal.toStringAsFixed(0)} kcal | ${totalPro.toStringAsFixed(1)}g P | ${totalCarb.toStringAsFixed(1)}g C | ${totalFat.toStringAsFixed(1)}g F',
-                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryGlow, fontSize: 13),
+                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 13),
               ),
             ],
           ),
@@ -1379,8 +1360,10 @@ class _FoodTrackingScreenState extends State<FoodTrackingScreen> with SingleTick
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 0,
               ),
               icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.white),
               label: Text('Log $_selectedMealSlot (${totalCal.toStringAsFixed(0)} kcal)', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15)),

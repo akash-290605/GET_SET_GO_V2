@@ -4,6 +4,7 @@ import '../db_helper.dart';
 import '../models/study_english_models.dart';
 import '../services/study_english_service.dart';
 import '../services/theme_service.dart';
+import '../widgets/glass_card.dart';
 import 'english_learning_screen.dart';
 
 class StudyAndEnglishScreen extends StatefulWidget {
@@ -276,20 +277,21 @@ class _StudyAndEnglishScreenState extends State<StudyAndEnglishScreen>
   }
 
   Widget _buildStudyStatCard(String label, String value, Color color) {
-    final theme = Theme.of(context);
+    final isDark = ThemeService.instance.isDarkMode(context);
     return Expanded(
-      child: Container(
+      child: GlassCard(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
+        borderRadius: 14,
+        border: Border.all(color: color.withValues(alpha: isDark ? 0.35 : 0.25)),
         child: Column(
           children: [
             Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: color)),
             const SizedBox(height: 2),
-            Text(label, style: TextStyle(fontSize: 9.5, color: theme.hintColor, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+            Text(
+              label,
+              style: TextStyle(fontSize: 9.5, color: AppColors.textSecondary(isDark), fontWeight: FontWeight.bold),
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       ),
@@ -297,18 +299,15 @@ class _StudyAndEnglishScreenState extends State<StudyAndEnglishScreen>
   }
 
   Widget _buildSubjectCard(StudySubject subject) {
-    final theme = Theme.of(context);
+    final isDark = ThemeService.instance.isDarkMode(context);
     final color = Color(subject.colorValue);
     final progress = subject.completionProgress;
 
-    return Container(
+    return GlassCard(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
+      borderRadius: 16,
+      border: Border.all(color: color.withValues(alpha: isDark ? 0.35 : 0.25)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -323,13 +322,16 @@ class _StudyAndEnglishScreenState extends State<StudyAndEnglishScreen>
                     decoration: BoxDecoration(shape: BoxShape.circle, color: color),
                   ),
                   const SizedBox(width: 8),
-                  Text(subject.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                  Text(
+                    subject.name,
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+                  ),
                 ],
               ),
               Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.add_task_rounded, size: 20, color: AppColors.primaryGlow),
+                    icon: const Icon(Icons.add_task_rounded, size: 20, color: AppColors.primary),
                     tooltip: 'Add Topic',
                     onPressed: () => _showAddTopicDialog(context, subject),
                   ),
@@ -344,7 +346,7 @@ class _StudyAndEnglishScreenState extends State<StudyAndEnglishScreen>
           ),
           if (subject.notes.isNotEmpty) ...[
             const SizedBox(height: 2),
-            Text(subject.notes, style: TextStyle(fontSize: 12, color: theme.hintColor)),
+            Text(subject.notes, style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark))),
           ],
           const SizedBox(height: 10),
 
@@ -352,7 +354,10 @@ class _StudyAndEnglishScreenState extends State<StudyAndEnglishScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('${subject.topics.where((t) => t.isCompleted).length} of ${subject.topics.length} topics done', style: TextStyle(fontSize: 11, color: theme.hintColor)),
+              Text(
+                '${subject.topics.where((t) => t.isCompleted).length} of ${subject.topics.length} topics done',
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary(isDark)),
+              ),
               Text('${(progress * 100).toStringAsFixed(0)}%', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: color)),
             ],
           ),
@@ -362,7 +367,7 @@ class _StudyAndEnglishScreenState extends State<StudyAndEnglishScreen>
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 6,
-              backgroundColor: theme.dividerColor.withValues(alpha: 0.1),
+              backgroundColor: isDark ? const Color(0x1FFFFFFF) : const Color(0x1F0F172A),
               valueColor: AlwaysStoppedAnimation<Color>(color),
             ),
           ),
@@ -375,8 +380,9 @@ class _StudyAndEnglishScreenState extends State<StudyAndEnglishScreen>
                 margin: const EdgeInsets.only(bottom: 6),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: theme.scaffoldBackgroundColor,
+                  color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
                 ),
                 child: Row(
                   children: [
@@ -393,11 +399,11 @@ class _StudyAndEnglishScreenState extends State<StudyAndEnglishScreen>
                           fontSize: 12.5,
                           fontWeight: FontWeight.w500,
                           decoration: topic.isCompleted ? TextDecoration.lineThrough : null,
-                          color: topic.isCompleted ? theme.hintColor : null,
+                          color: topic.isCompleted ? AppColors.textSecondary(isDark) : AppColors.textPrimary(isDark),
                         ),
                       ),
                     ),
-                    Text('${topic.estimatedMinutes}m', style: TextStyle(fontSize: 11, color: theme.hintColor)),
+                    Text('${topic.estimatedMinutes}m', style: TextStyle(fontSize: 11, color: AppColors.textSecondary(isDark))),
                   ],
                 ),
               );
