@@ -33,6 +33,7 @@ class _AccountCloudModalState extends State<AccountCloudModal> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = ThemeService.instance.isDarkMode(context);
     final user = AuthService.instance.currentUser;
     final isGuest = AuthService.instance.isGuest || user == null;
     final syncService = CloudSyncService.instance;
@@ -43,17 +44,17 @@ class _AccountCloudModalState extends State<AccountCloudModal> {
       maxChildSize: 0.95,
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
             border: Border(
-              top: BorderSide(color: AppColors.borderLight, width: 1.5),
-              left: BorderSide(color: AppColors.borderLight, width: 1),
-              right: BorderSide(color: AppColors.borderLight, width: 1),
+              top: BorderSide(color: isDark ? AppColors.darkBorder : AppColors.lightBorder, width: 1.5),
+              left: BorderSide(color: isDark ? AppColors.darkBorder : AppColors.lightBorder, width: 1),
+              right: BorderSide(color: isDark ? AppColors.darkBorder : AppColors.lightBorder, width: 1),
             ),
           ),
           child: ListenableBuilder(
-            listenable: Listenable.merge([AuthService.instance, CloudSyncService.instance]),
+            listenable: Listenable.merge([AuthService.instance, CloudSyncService.instance, ThemeService.instance]),
             builder: (context, _) {
               return ListView(
                 controller: scrollController,
@@ -88,7 +89,7 @@ class _AccountCloudModalState extends State<AccountCloudModal> {
                             child: const Icon(Icons.cloud_sync_rounded, color: Colors.white, size: 20),
                           ),
                           const SizedBox(width: 10),
-                          const Column(
+                          Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
@@ -97,12 +98,12 @@ class _AccountCloudModalState extends State<AccountCloudModal> {
                                   fontSize: 14,
                                   fontWeight: FontWeight.w900,
                                   letterSpacing: 1.4,
-                                  color: Colors.white,
+                                  color: AppColors.textPrimary(isDark),
                                 ),
                               ),
                               Text(
                                 'Firebase Firestore + Local Storage',
-                                style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                                style: TextStyle(fontSize: 11, color: AppColors.textMutedDynamic(isDark)),
                               ),
                             ],
                           ),
@@ -110,7 +111,7 @@ class _AccountCloudModalState extends State<AccountCloudModal> {
                       ),
                       IconButton(
                         onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close_rounded, color: Colors.white60, size: 22),
+                        icon: Icon(Icons.close_rounded, color: AppColors.textSecondary(isDark), size: 22),
                       ),
                     ],
                   ),
@@ -120,9 +121,9 @@ class _AccountCloudModalState extends State<AccountCloudModal> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceElevated,
+                      color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: AppColors.borderLight),
+                      border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
                     ),
                     child: Column(
                       children: [
@@ -143,12 +144,12 @@ class _AccountCloudModalState extends State<AccountCloudModal> {
                                 children: [
                                   Text(
                                     user?.displayName ?? (isGuest ? 'Guest User (Local Storage)' : 'User'),
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary(isDark)),
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
                                     user?.email ?? 'Sign in to enable automatic multi-device cloud sync',
-                                    style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted),
+                                    style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary(isDark)),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -186,9 +187,9 @@ class _AccountCloudModalState extends State<AccountCloudModal> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceElevated,
+                      color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: AppColors.borderLight),
+                      border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -225,7 +226,7 @@ class _AccountCloudModalState extends State<AccountCloudModal> {
                                   : syncService.status == CloudSyncStatus.syncing
                                       ? 'Syncing in background...'
                                       : 'Offline / Local Cache Active',
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary(isDark)),
                             ),
                           ],
                         ),
@@ -255,9 +256,9 @@ class _AccountCloudModalState extends State<AccountCloudModal> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceElevated,
+                      color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: AppColors.borderLight),
+                      border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
