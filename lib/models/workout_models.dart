@@ -171,9 +171,6 @@ class ExerciseDetail {
       completedSets: cSets,
     );
   }
-  int get targetSets => sets;
-  int get completedSetsCount => completedSets.where((s) => s == true).length;
-  bool get isCompleted => sets > 0 && completedSetsCount >= sets;
 }
 
 class WorkoutDayPlan {
@@ -198,16 +195,6 @@ class WorkoutDayPlan {
     required this.exercises,
     this.completedAt,
   });
-
-  int get totalSets => exercises.fold(0, (sum, e) => sum + e.sets);
-  int get completedSetsCount => exercises.fold(0, (sum, e) => sum + e.completedSetsCount);
-  int get completedExercisesCount => exercises.where((e) => e.isCompleted).length;
-  double get progressPercentage {
-    if (status == WorkoutStatus.completed) return 1.0;
-    if (totalSets == 0) return 0.0;
-    return (completedSetsCount / totalSets).clamp(0.0, 1.0);
-  }
-  bool get isFullyCompleted => status == WorkoutStatus.completed || (totalSets > 0 && completedSetsCount >= totalSets);
 
   WorkoutDayPlan copyWith({
     String? id,
