@@ -1,396 +1,360 @@
 import 'package:flutter/material.dart';
-import '../services/profile_service.dart';
-import '../services/workout_service.dart';
-import '../services/finance_service.dart';
-import '../services/food_service.dart';
-import '../services/theme_service.dart';
+import '../db_helper.dart';
+import '../models/food_models.dart';
 import '../models/workout_models.dart';
-import '../widgets/titan_ai_sheet.dart';
-import '../widgets/account_cloud_modal.dart';
-import '../widgets/body_photo_modal.dart';
-import '../widgets/weekly_report_modal.dart';
+import '../services/profile_service.dart';
+import '../services/theme_service.dart';
+import 'food_tracking_screen.dart';
+import 'workout_screen.dart';
+import 'expense_screen.dart';
+import 'ai_coach_screen.dart';
 
-class DashboardScreen extends StatelessWidget {
-  final Function(int) onNavigateTab;
-  const DashboardScreen({super.key, required this.onNavigateTab});
+class DashboardScreen extends StatefulWidget {
+  final Function(int)? onNavigateTab;
+
+  const DashboardScreen({super.key, this.onNavigateTab});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  bool _isLoading = true;
+  List<WorkoutDayPlan> _workouts = [];
+  List<MealRecord> _meals = [];
+  List<Map<String, dynamic>> _expenses = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardData();
+    ProfileService.instance.addListener(_onProfileChanged);
+  }
+
+  @override
+  void dispose() {
+    ProfileService.instance.removeListener(_onProfileChanged);
+    super.dispose();
+  }
+
+  void _onProfileChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadDashboardData() async {
+    setState(() => _isLoading = true);
+    try {
+      final w = await DBHelper.instance.getWorkoutPlans();
+      final m = await DBHelper.instance.getMeals();
+      final e = await DBHelper.instance.getExpenses();
+
+      if (mounted) {
+        setState(() {
+          _workouts = w;
+          _meals = m;
+          _expenses = e;
+          _isLoading = false;
+        });
+      }
+    } catch (err) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String get _currentDayName {
+    final days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    final weekday = DateTime.now().weekday - 1;
+    return days[weekday.clamp(0, 6)];
+  }
+
+  WorkoutDayPlan? get _todayWorkout {
+    final day = _currentDayName;
+    try {
+      return _workouts.firstWhere((w) => w.dayName == day);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  double get _todayCalories {
+    final now = DateTime.now();
+    final todayMeals = _meals.where((m) =>
+        m.loggedAt.year == now.year &&
+        m.loggedAt.month == now.month &&
+        m.loggedAt.day == now.day);
+    return todayMeals.fold(0.0, (sum, m) => sum + m.totalCalories);
+  }
+
+  double get _todayProtein {
+    final now = DateTime.now();
+    final todayMeals = _meals.where((m) =>
+        m.loggedAt.year == now.year &&
+        m.loggedAt.month == now.month &&
+        m.loggedAt.day == now.day);
+    return todayMeals.fold(0.0, (sum, m) => sum + m.totalProtein);
+  }
+
+  Map<String, dynamic> get _monthlyFinanceStats {
+    final now = DateTime.now();
+    final thisMonthExpenses = _expenses.where((t) {
+      final date = DateTime.tryParse(t['date'] ?? '') ?? now;
+      return date.year == now.year && date.month == now.month;
+    }).toList();
+
+    double income = 0;
+    double expenses = 0;
+    final catMap = <String, double>{};
+
+    for (var t in thisMonthExpenses) {
+      final amt = (t['amount'] as num?)?.toDouble() ?? 0.0;
+      if (t['is_income'] == 1 || t['is_income'] == true) {
+        income += amt;
+      } else {
+        expenses += amt;
+        final cat = t['category'] as String? ?? 'General';
+        catMap[cat] = (catMap[cat] ?? 0) + amt;
+      }
+    }
+
+    String topCat = 'None';
+    double topCatAmt = 0;
+    catMap.forEach((k, v) {
+      if (v > topCatAmt) {
+        topCatAmt = v;
+        topCat = k;
+      }
+    });
+
+    return {
+      'income': income,
+      'expenses': expenses,
+      'savings': income - expenses,
+      'topCategory': topCat,
+      'topCategoryAmount': topCatAmt,
+    };
+  }
+
+  String get _smartAiInsight {
+    final stats = _monthlyFinanceStats;
+    final budgetCap = ProfileService.instance.monthlyBudgetCap;
+    final exp = stats['expenses'] as double;
+    final todayCal = _todayCalories;
+    final targetCal = ProfileService.instance.nutritionTarget.calorieTarget;
+    final todayProt = _todayProtein;
+    final targetProt = ProfileService.instance.nutritionTarget.proteinTargetGrams;
+
+    if (exp > budgetCap * 0.8) {
+      return "⚠️ You've utilized ${(exp / budgetCap * 100).toStringAsFixed(0)}% of your monthly budget. Review recurring subscriptions to stay on track.";
+    } else if (todayCal > targetCal && targetCal > 0) {
+      return "⚠️ You've reached ${(todayCal - targetCal).toStringAsFixed(0)} kcal over your daily target. Light cardio or active walking can balance today's energy expenditure.";
+    } else if (todayProt < targetProt * 0.5 && DateTime.now().hour > 17) {
+      return "🥩 You are ${(targetProt - todayProt).toStringAsFixed(0)}g away from your daily protein goal. A high-protein dinner or shake is recommended.";
+    } else if (_todayWorkout?.status == WorkoutStatus.completed) {
+      return "🔥 Great discipline completing today's ${_todayWorkout?.workoutName}! Ensure you hydrate and rest for optimal recovery.";
+    } else if (stats['topCategory'] != 'None') {
+      return "💡 Your largest expense category this month is ${stats['topCategory']} (${ProfileService.instance.currencySymbol} ${(stats['topCategoryAmount'] as double).toStringAsFixed(0)}). AI Coach can suggest optimizations.";
+    }
+    return "⚡ You're on track for your fitness and financial targets. Stay disciplined and keep momentum!";
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final profile = ProfileService.instance;
+    final curSym = profile.currencySymbol;
+    final todayWk = _todayWorkout;
+    final finStats = _monthlyFinanceStats;
+    final completedWorkouts = _workouts.where((w) => w.status == WorkoutStatus.completed).length;
+    final totalPlannedWorkouts = _workouts.where((w) => w.status != WorkoutStatus.restDay).length;
 
-    final profileService = ProfileService.instance;
-    final workoutService = WorkoutService.instance;
-    final financeService = FinanceService.instance;
-    final foodService = FoodService.instance;
-
-    return AnimatedBuilder(
-      animation: Listenable.merge([profileService, workoutService, financeService, foodService]),
-      builder: (context, _) {
-        final profile = profileService.profile;
-        final todayPlan = workoutService.todayPlan;
-        final currSymbol = profile.currencySymbol;
-
-        return Scaffold(
-          appBar: AppBar(
-            title: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF00E5FF), Color(0xFF6366F1)],
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.bolt, color: Colors.black, size: 20),
-                ),
-                const SizedBox(width: 10),
-                Column(
+    return Scaffold(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _loadDashboardData,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'GET SET GO',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.5,
-                        color: isDark ? const Color(0xFFF0F6FC) : const Color(0xFF0F172A),
-                      ),
-                    ),
-                    Text(
-                      'Welcome back, ${profile.name}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.normal),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.assessment_outlined),
-                tooltip: 'Weekly BMI Report',
-                onPressed: () => WeeklyReportModal.show(context),
-              ),
-              IconButton(
-                icon: const Icon(Icons.camera_alt_outlined),
-                tooltip: 'Body Photo Check-in',
-                onPressed: () => BodyPhotoModal.show(context),
-              ),
-              IconButton(
-                icon: const Icon(Icons.cloud_sync_outlined),
-                tooltip: 'Cloud Sync & Vault',
-                onPressed: () => AccountCloudModal.show(context),
-              ),
-              IconButton(
-                icon: const Icon(Icons.auto_awesome, color: ThemeService.primaryCyan),
-                tooltip: 'Ask Titan AI',
-                onPressed: () => TitanAiSheet.show(context),
-              ),
-            ],
-          ),
-          body: RefreshIndicator(
-            onRefresh: () async {
-              await Future.delayed(const Duration(milliseconds: 400));
-            },
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-              children: [
-                // 1. Strict Goal & Daily Telemetry Header Banner (Editable on Tap)
-                _buildStrictGoalHeader(context, profile, profileService, isDark),
-                const SizedBox(height: 18),
-
-                // 2. Titan Dynamic AI Insight Card
-                _buildTitanInsightCard(context, isDark, currSymbol, financeService, workoutService),
-                const SizedBox(height: 18),
-
-                // 3. Quick Action Bar
-                _buildQuickActionBar(context, isDark),
-                const SizedBox(height: 22),
-
-                // 4. Daily Fitness Snapshot
-                _buildFitnessCard(context, isDark, profile, todayPlan, workoutService),
-                const SizedBox(height: 18),
-
-                // 5. Finance Health Snapshot
-                _buildFinanceCard(context, isDark, currSymbol, financeService),
-                const SizedBox(height: 18),
-
-                // 6. Nutrition & Macros Snapshot
-                _buildNutritionCard(context, isDark, foodService),
-                const SizedBox(height: 30),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // 1. Strict Goal & Daily Steps / Active Duration Telemetry Card
-  Widget _buildStrictGoalHeader(
-    BuildContext context,
-    UserProfile profile,
-    ProfileService profileService,
-    bool isDark,
-  ) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isDark
-              ? [const Color(0xFF1E1B4B), const Color(0xFF0F172A)]
-              : [const Color(0xFFEEF2FF), const Color(0xFFF8FAFC)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: const Color(0xFF6366F1).withValues(alpha: isDark ? 0.4 : 0.6),
-          width: 1.3,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF6366F1).withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header Row: Strict Goal Title (Editable on Tap) + Strict Badge
-          InkWell(
-            onTap: () => _showEditStrictGoalDialog(context, profile, profileService),
-            borderRadius: BorderRadius.circular(10),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF6366F1).withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.track_changes_rounded, color: Color(0xFF818CF8), size: 18),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    // Greeting & Header
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              profile.isStrictMode ? 'STRICT GOAL PROTOCOL' : 'ACTIVE GOAL PROTOCOL',
-                              style: const TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.8,
-                                color: Color(0xFF818CF8),
-                              ),
+                              'Welcome back, ${profile.userName} 👋',
+                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
                             ),
-                            const SizedBox(width: 6),
-                            const Icon(Icons.edit_outlined, size: 13, color: Color(0xFF818CF8)),
+                            const SizedBox(height: 2),
+                            Text(
+                              '$_currentDayName • Focus: ${profile.fitnessGoal}',
+                              style: TextStyle(fontSize: 12.5, color: theme.hintColor),
+                            ),
                           ],
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          profile.strictGoalTitle,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.2,
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          child: const Row(
+                            children: [
+                              Icon(Icons.local_fire_department_rounded, color: AppColors.accentAmber, size: 16),
+                              SizedBox(width: 4),
+                              Text('4 Day Streak', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.accentAmber)),
+                            ],
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: profile.isStrictMode
-                          ? Colors.redAccent.withValues(alpha: 0.2)
-                          : Colors.grey.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: profile.isStrictMode
-                            ? Colors.redAccent.withValues(alpha: 0.5)
-                            : Colors.grey.withValues(alpha: 0.4),
+                    const SizedBox(height: 16),
+
+                    // Compact AI Insight Card
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.primary.withValues(alpha: 0.18),
+                            AppColors.secondary.withValues(alpha: 0.12),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.auto_awesome_rounded, color: AppColors.accentAmber, size: 18),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('AI LIFE-MANAGEMENT INSIGHT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.accentAmber, letterSpacing: 1)),
+                                const SizedBox(height: 4),
+                                Text(_smartAiInsight, style: const TextStyle(fontSize: 12.5, height: 1.35, fontWeight: FontWeight.w500)),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    child: Text(
-                      profile.isStrictMode ? 'STRICT' : 'STANDARD',
-                      style: TextStyle(
-                        color: profile.isStrictMode ? Colors.redAccent : Colors.grey,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.5,
+                    const SizedBox(height: 16),
+
+                    // Quick Actions Row
+                    Text('Quick Actions', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildQuickActionButton(
+                            icon: Icons.fitness_center_rounded,
+                            label: 'Today Workout',
+                            color: AppColors.primary,
+                            onTap: () => widget.onNavigateTab != null ? widget.onNavigateTab!(1) : Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkoutScreen())),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildQuickActionButton(
+                            icon: Icons.camera_alt_rounded,
+                            label: 'Scan Food AI',
+                            color: AppColors.accentGreen,
+                            onTap: () => widget.onNavigateTab != null ? widget.onNavigateTab!(2) : Navigator.push(context, MaterialPageRoute(builder: (_) => const FoodTrackingScreen())),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildQuickActionButton(
+                            icon: Icons.add_card_rounded,
+                            label: 'Add Expense',
+                            color: AppColors.secondary,
+                            onTap: () => widget.onNavigateTab != null ? widget.onNavigateTab!(3) : Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseScreen())),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildQuickActionButton(
+                            icon: Icons.psychology_rounded,
+                            label: 'Ask AI Coach',
+                            color: AppColors.accentAmber,
+                            onTap: () => widget.onNavigateTab != null ? widget.onNavigateTab!(4) : Navigator.push(context, MaterialPageRoute(builder: (_) => const AiCoachScreen())),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 18),
+
+                    // Dynamic Widgets: Fitness, Nutrition, Finance
+                    // 1. Fitness Card
+                    _buildFitnessCard(todayWk, completedWorkouts, totalPlannedWorkouts),
+                    const SizedBox(height: 14),
+
+                    // 2. Nutrition Card
+                    _buildNutritionCard(),
+                    const SizedBox(height: 14),
+
+                    // 3. Finance Card
+                    _buildFinanceCard(finStats, curSym),
+                    const SizedBox(height: 40),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
+    );
+  }
 
-          // Telemetry Row: Daily Steps Meter & Daily Active Time Meter
-          Row(
-            children: [
-              // 1. Steps Tracker
-              Expanded(
-                child: _buildTelemetryMeter(
-                  context: context,
-                  title: 'Daily Steps',
-                  current: profile.todaySteps,
-                  target: profile.dailyStepTarget,
-                  unit: 'steps',
-                  progress: profile.stepsProgressRatio,
-                  color: ThemeService.primaryEmerald,
-                  isDark: isDark,
-                  onQuickAdd1: () => profileService.addSteps(500),
-                  quickAdd1Label: '+500',
-                  onQuickAdd2: () => profileService.addSteps(1000),
-                  quickAdd2Label: '+1k',
-                  onCustomEdit: () => _showCustomInputDialog(
-                    context,
-                    title: 'Log Today\'s Steps',
-                    initialVal: profile.todaySteps.toString(),
-                    onSaved: (val) {
-                      final s = int.tryParse(val);
-                      if (s != null) profileService.logSteps(s);
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              // 2. Active Time Tracker
-              Expanded(
-                child: _buildTelemetryMeter(
-                  context: context,
-                  title: 'Active Time',
-                  current: profile.todayActiveTimeMinutes,
-                  target: profile.dailyActiveTimeMinutesTarget,
-                  unit: 'mins',
-                  progress: profile.activeTimeProgressRatio,
-                  color: ThemeService.primaryCyan,
-                  isDark: isDark,
-                  onQuickAdd1: () => profileService.addActiveTime(15),
-                  quickAdd1Label: '+15m',
-                  onQuickAdd2: () => profileService.addActiveTime(30),
-                  quickAdd2Label: '+30m',
-                  onCustomEdit: () => _showCustomInputDialog(
-                    context,
-                    title: 'Log Active Duration (Minutes)',
-                    initialVal: profile.todayActiveTimeMinutes.toString(),
-                    onSaved: (val) {
-                      final m = int.tryParse(val);
-                      if (m != null) profileService.logActiveTime(m);
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Bottom Quick Action Buttons: Weekly BMI Report & Body Photo Check-in
-          Row(
-            children: [
-              Expanded(
-                child: InkWell(
-                  onTap: () => WeeklyReportModal.show(context),
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-                    decoration: BoxDecoration(
-                      color: ThemeService.primaryCyan.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: ThemeService.primaryCyan.withValues(alpha: 0.3)),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.assessment_rounded, size: 16, color: ThemeService.primaryCyan),
-                        SizedBox(width: 6),
-                        Text(
-                          'Weekly BMI Report',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.bold,
-                            color: ThemeService.primaryCyan,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: InkWell(
-                  onTap: () => BodyPhotoModal.show(context),
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF6366F1).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.3)),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.camera_alt_rounded, size: 16, color: Color(0xFF818CF8)),
-                        SizedBox(width: 6),
-                        Text(
-                          'Body Photo Log',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF818CF8),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
+  Widget _buildQuickActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 6),
+            Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildTelemetryMeter({
-    required BuildContext context,
-    required String title,
-    required int current,
-    required int target,
-    required String unit,
-    required double progress,
-    required Color color,
-    required bool isDark,
-    required VoidCallback onQuickAdd1,
-    required String quickAdd1Label,
-    required VoidCallback onQuickAdd2,
-    required String quickAdd2Label,
-    required VoidCallback onCustomEdit,
-  }) {
+  Widget _buildFitnessCard(WorkoutDayPlan? todayWk, int completed, int totalPlanned) {
+    final theme = Theme.of(context);
+    final profile = ProfileService.instance;
+
     return Container(
-      padding: const EdgeInsets.all(12),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0D1117) : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isDark ? const Color(0xFF21262D) : const Color(0xFFE2E8F0),
-        ),
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -398,359 +362,55 @@ class DashboardScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(title, style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600)),
+              const Row(
+                children: [
+                  Icon(Icons.fitness_center_rounded, color: AppColors.primary, size: 18),
+                  SizedBox(width: 8),
+                  Text('FITNESS & WORKOUT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryGlow, letterSpacing: 1.1)),
+                ],
+              ),
               InkWell(
-                onTap: onCustomEdit,
-                child: const Icon(Icons.edit_note_rounded, size: 16, color: Colors.grey),
+                onTap: () => widget.onNavigateTab != null ? widget.onNavigateTab!(1) : Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkoutScreen())),
+                child: const Text('View Plan →', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppColors.primaryGlow)),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                current.toString(),
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: color,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                '/ $target $unit',
-                style: const TextStyle(fontSize: 10.5, color: Colors.grey),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 5,
-              backgroundColor: isDark ? const Color(0xFF21262D) : const Color(0xFFE2E8F0),
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: InkWell(
-                  onTap: onQuickAdd1,
-                  borderRadius: BorderRadius.circular(6),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 3),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      quickAdd1Label,
-                      style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: color),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: InkWell(
-                  onTap: onQuickAdd2,
-                  borderRadius: BorderRadius.circular(6),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 3),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      quickAdd2Label,
-                      style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: color),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 2. Titan Dynamic Insight Card
-  Widget _buildTitanInsightCard(
-    BuildContext context,
-    bool isDark,
-    String currSymbol,
-    FinanceService finance,
-    WorkoutService workout,
-  ) {
-    final audit = finance.generateAuditReport();
-    String insightText;
-    if (audit.isNotEmpty) {
-      final topFlag = audit.first;
-      insightText = "${topFlag.category}: ${topFlag.reason}";
-    } else if (workout.todayPlan != null && !workout.todayPlan!.isRestDay) {
-      insightText = "Today is ${workout.currentDayName} (${workout.todayPlan!.workoutTitle}). Target progressive overload on ${workout.todayPlan!.primaryMuscle}.";
-    } else {
-      insightText = "Active recovery day logged. Prioritize 8+ hours of sleep and hit your daily hydration target.";
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isDark
-              ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
-              : [const Color(0xFFE0F2FE), const Color(0xFFF1F5F9)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: ThemeService.primaryCyan.withValues(alpha: isDark ? 0.35 : 0.6),
-          width: 1.2,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: ThemeService.primaryCyan.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.psychology_outlined, color: ThemeService.primaryCyan, size: 20),
-              ),
-              const SizedBox(width: 10),
-              const Text(
-                'TITAN AI DAILY TELEMETRY',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.8,
-                  color: ThemeService.primaryCyan,
-                ),
-              ),
-              const Spacer(),
-              InkWell(
-                onTap: () => TitanAiSheet.show(context),
-                child: const Row(
-                  children: [
-                    Text('Ask AI', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ThemeService.primaryCyan)),
-                    Icon(Icons.chevron_right, size: 16, color: ThemeService.primaryCyan),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            insightText,
-            style: TextStyle(
-              fontSize: 13.5,
-              height: 1.45,
-              color: isDark ? const Color(0xFFF0F6FC) : const Color(0xFF0F172A),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 3. Quick Action Bar
-  Widget _buildQuickActionBar(BuildContext context, bool isDark) {
-    return Row(
-      children: [
-        Expanded(
-          child: _quickButton(
-            icon: Icons.fitness_center_rounded,
-            label: 'Workout',
-            color: ThemeService.primaryCyan,
-            isDark: isDark,
-            onTap: () => onNavigateTab(1), // Workout tab
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _quickButton(
-            icon: Icons.camera_alt_rounded,
-            label: 'Food Vision',
-            color: ThemeService.primaryEmerald,
-            isDark: isDark,
-            onTap: () => onNavigateTab(2), // Food tab
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _quickButton(
-            icon: Icons.account_balance_wallet_rounded,
-            label: 'Finance',
-            color: ThemeService.accentIndigo,
-            isDark: isDark,
-            onTap: () => onNavigateTab(3), // Finance tab
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _quickButton(
-            icon: Icons.insights_rounded,
-            label: 'Analytics',
-            color: ThemeService.accentAmber,
-            isDark: isDark,
-            onTap: () => onNavigateTab(4), // Analytics tab
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _quickButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required bool isDark,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF161B22) : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0),
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 22),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // 4. Fitness Card
-  Widget _buildFitnessCard(
-    BuildContext context,
-    bool isDark,
-    UserProfile profile,
-    DayWorkoutPlan? todayPlan,
-    WorkoutService workout,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.bolt, color: ThemeService.primaryCyan, size: 20),
-              const SizedBox(width: 8),
-              const Text(
-                'FITNESS & SPLIT',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.8),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.local_fire_department, color: Colors.orange, size: 14),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${workout.currentStreakDays} Day Streak',
-                      style: const TextStyle(color: Colors.orange, fontSize: 11, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Workout Title & Status
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(todayWk != null ? todayWk.workoutName : 'Active Rest Day', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 2),
                     Text(
-                      todayPlan?.workoutTitle ?? 'Rest & Regeneration',
-                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${todayPlan?.primaryMuscle ?? 'Mobility'} • ${todayPlan?.durationMinutes ?? 0} mins • ${todayPlan?.exercises.length ?? 0} exercises',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      todayWk != null ? '${todayWk.muscleGroup} • ${todayWk.exercises.length} exercises' : 'Rest and recover for next session',
+                      style: TextStyle(fontSize: 12, color: theme.hintColor),
                     ),
                   ],
                 ),
               ),
-              OutlinedButton(
-                onPressed: () => onNavigateTab(1),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  side: const BorderSide(color: ThemeService.primaryCyan),
+              if (todayWk != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: WorkoutModels.getStatusColor(todayWk.status).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    WorkoutModels.getStatusLabel(todayWk.status),
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: WorkoutModels.getStatusColor(todayWk.status)),
+                  ),
                 ),
-                child: const Text('View Plan', style: TextStyle(fontSize: 12)),
-              ),
             ],
           ),
-          const SizedBox(height: 16),
-
-          // Weight & Progress Metrics
+          const Divider(height: 20),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _metricTile(
-                title: 'Weight',
-                value: '${profile.currentWeightKg} kg',
-                sub: 'Target: ${profile.targetWeightKg} kg',
-                isDark: isDark,
-              ),
-              const SizedBox(width: 10),
-              _metricTile(
-                title: 'Weekly Completion',
-                value: '${(workout.weeklyCompletionRate * 100).toStringAsFixed(0)}%',
-                sub: '${workout.plans.values.where((p) => p.status == WorkoutStatus.completed).length}/7 Days Done',
-                isDark: isDark,
-              ),
-              const SizedBox(width: 10),
-              _metricTile(
-                title: 'BMI',
-                value: profile.bmi.toStringAsFixed(1),
-                sub: profile.bmiCategory,
-                isDark: isDark,
-              ),
+              _buildMiniMetric('Weight', '${profile.weightKg} kg', 'Target: ${profile.targetWeightKg} kg'),
+              _buildMiniMetric('Weekly Split', '$completed / $totalPlanned Done', '${((totalPlanned > 0 ? completed / totalPlanned : 0) * 100).toStringAsFixed(0)}% complete'),
             ],
           ),
         ],
@@ -758,445 +418,148 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  // 5. Finance Card
-  Widget _buildFinanceCard(
-    BuildContext context,
-    bool isDark,
-    String currSymbol,
-    FinanceService finance,
-  ) {
-    final balance = finance.netSavings;
-    final income = finance.totalIncome;
-    final expense = finance.totalExpense;
+  Widget _buildNutritionCard() {
+    final theme = Theme.of(context);
+    final target = ProfileService.instance.nutritionTarget;
+    final todayCal = _todayCalories;
+    final todayProt = _todayProtein;
+    final calPct = (target.calorieTarget > 0 ? todayCal / target.calorieTarget : 0.0).clamp(0.0, 1.0);
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0),
-        ),
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.accentGreen.withValues(alpha: 0.25)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Icon(Icons.account_balance_wallet_outlined, color: ThemeService.primaryEmerald, size: 20),
-              const SizedBox(width: 8),
-              const Text(
-                'FINANCE OVERVIEW',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.8),
+              const Row(
+                children: [
+                  Icon(Icons.restaurant_rounded, color: AppColors.accentGreen, size: 18),
+                  SizedBox(width: 8),
+                  Text('DAILY NUTRITION INTAKE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.accentGreen, letterSpacing: 1.1)),
+                ],
               ),
-              const Spacer(),
               InkWell(
-                onTap: () => onNavigateTab(3),
-                child: const Text(
-                  'Manage Ledger →',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ThemeService.primaryCyan),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Net Balance
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                '$currSymbol${balance.toStringAsFixed(0)}',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w900,
-                  color: balance >= 0 ? ThemeService.primaryEmerald : Colors.redAccent,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Text('Net Balance', style: TextStyle(fontSize: 13, color: Colors.grey)),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Income vs Expense row
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Total Income', style: TextStyle(fontSize: 11, color: Colors.grey)),
-                      const SizedBox(height: 2),
-                      Text(
-                        '+$currSymbol${income.toStringAsFixed(0)}',
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: ThemeService.primaryEmerald),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Total Expenses', style: TextStyle(fontSize: 11, color: Colors.grey)),
-                      const SizedBox(height: 2),
-                      Text(
-                        '-$currSymbol${expense.toStringAsFixed(0)}',
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.redAccent),
-                      ),
-                    ],
-                  ),
-                ),
+                onTap: () => widget.onNavigateTab != null ? widget.onNavigateTab!(2) : Navigator.push(context, MaterialPageRoute(builder: (_) => const FoodTrackingScreen())),
+                child: const Text('Log Meal →', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppColors.accentGreen)),
               ),
             ],
           ),
           const SizedBox(height: 12),
-
-          // Budget Progress Bar
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Budget Remaining: $currSymbol${finance.budgetRemaining.toStringAsFixed(0)}',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
-                  Text(
-                    '${(finance.budgetUsageRatio * 100).toStringAsFixed(0)}% Used',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: finance.budgetUsageRatio > 1.0 ? Colors.redAccent : Colors.grey,
-                    ),
-                  ),
+                  Text('${todayCal.toStringAsFixed(0)} / ${target.calorieTarget.toStringAsFixed(0)} kcal', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 2),
+                  Text('${todayProt.toStringAsFixed(0)}g / ${target.proteinTargetGrams.toStringAsFixed(0)}g Protein', style: TextStyle(fontSize: 12, color: theme.hintColor)),
                 ],
               ),
-              const SizedBox(height: 6),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: LinearProgressIndicator(
-                  value: finance.budgetUsageRatio.clamp(0.0, 1.0),
-                  minHeight: 6,
-                  backgroundColor: isDark ? const Color(0xFF21262D) : const Color(0xFFE2E8F0),
-                  color: finance.budgetUsageRatio > 0.9 ? Colors.redAccent : ThemeService.primaryCyan,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.accentGreen.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
                 ),
+                child: Text('${(calPct * 100).toStringAsFixed(0)}% Calorie Target', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.accentGreen)),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: calPct,
+              minHeight: 6,
+              backgroundColor: theme.dividerColor.withValues(alpha: 0.1),
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accentGreen),
+            ),
           ),
         ],
       ),
     );
   }
 
-  // 6. Nutrition Card
-  Widget _buildNutritionCard(BuildContext context, bool isDark, FoodService food) {
+  Widget _buildFinanceCard(Map<String, dynamic> stats, String curSym) {
+    final theme = Theme.of(context);
+    final exp = stats['expenses'] as double;
+    final savings = stats['savings'] as double;
+    final topCat = stats['topCategory'] as String;
+
     return Container(
-      padding: const EdgeInsets.all(18),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0),
-        ),
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.secondary.withValues(alpha: 0.25)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Icon(Icons.restaurant_menu_rounded, color: Colors.orangeAccent, size: 20),
-              const SizedBox(width: 8),
-              const Text(
-                'NUTRITION & MACROS TODAY',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.8),
-              ),
-              const Spacer(),
-              InkWell(
-                onTap: () => onNavigateTab(2),
-                child: const Text(
-                  'Log Food →',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ThemeService.primaryCyan),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          Row(
-            children: [
-              _macroPill(
-                label: 'Calories',
-                current: food.totalCalories.toStringAsFixed(0),
-                target: '${food.macroTargets.calorieTarget.toStringAsFixed(0)} kcal',
-                progress: food.calorieProgress,
-                color: Colors.orangeAccent,
-                isDark: isDark,
-              ),
-              const SizedBox(width: 8),
-              _macroPill(
-                label: 'Protein',
-                current: '${food.totalProtein.toStringAsFixed(0)}g',
-                target: '${food.macroTargets.proteinTargetGrams.toStringAsFixed(0)}g',
-                progress: food.proteinProgress,
-                color: ThemeService.primaryCyan,
-                isDark: isDark,
-              ),
-              const SizedBox(width: 8),
-              _macroPill(
-                label: 'Hydration',
-                current: '${(food.todayWaterMl / 1000).toStringAsFixed(1)}L',
-                target: '${(food.macroTargets.waterMlTarget / 1000).toStringAsFixed(1)}L',
-                progress: food.waterProgress,
-                color: ThemeService.accentIndigo,
-                isDark: isDark,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _metricTile({
-    required String title,
-    required String value,
-    required String sub,
-    required bool isDark,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isDark ? const Color(0xFF21262D) : const Color(0xFFE2E8F0),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-            const SizedBox(height: 3),
-            Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 2),
-            Text(sub, style: const TextStyle(fontSize: 10, color: Colors.grey), overflow: TextOverflow.ellipsis),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _macroPill({
-    required String label,
-    required String current,
-    required String target,
-    required double progress,
-    required Color color,
-    required bool isDark,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isDark ? const Color(0xFF21262D) : const Color(0xFFE2E8F0),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-            const SizedBox(height: 4),
-            Text(current, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color)),
-            const SizedBox(height: 2),
-            Text(target, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-            const SizedBox(height: 6),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: progress.clamp(0.0, 1.0),
-                minHeight: 4,
-                backgroundColor: isDark ? const Color(0xFF21262D) : const Color(0xFFE2E8F0),
-                color: color,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showEditStrictGoalDialog(
-    BuildContext context,
-    UserProfile profile,
-    ProfileService profileService,
-  ) {
-    final titleCtrl = TextEditingController(text: profile.strictGoalTitle);
-    final stepCtrl = TextEditingController(text: profile.dailyStepTarget.toString());
-    final activeCtrl = TextEditingController(text: profile.dailyActiveTimeMinutesTarget.toString());
-    final weightTargetCtrl = TextEditingController(text: profile.targetWeightKg.toStringAsFixed(1));
-    bool strictMode = profile.isStrictMode;
-
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return AlertDialog(
-              title: const Row(
+              const Row(
                 children: [
-                  Icon(Icons.track_changes_rounded, color: ThemeService.primaryCyan),
+                  Icon(Icons.account_balance_wallet_rounded, color: AppColors.secondary, size: 18),
                   SizedBox(width: 8),
-                  Text('Edit Strict Goal Protocol'),
+                  Text('MONTHLY FINANCE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.secondary, letterSpacing: 1.1)),
                 ],
               ),
-              content: SingleChildScrollView(
+              InkWell(
+                onTap: () => widget.onNavigateTab != null ? widget.onNavigateTab!(3) : Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseScreen())),
+                child: const Text('View Finance →', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppColors.secondary)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    TextField(
-                      controller: titleCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Strict Goal Headline',
-                        hintText: 'e.g. 10,000 Steps & Hypertrophy',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.fitness_center),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: stepCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Daily Step Target',
-                        hintText: 'e.g. 10000',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.directions_walk_rounded),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: activeCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Daily Active Minutes Target',
-                        hintText: 'e.g. 60',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.timer_outlined),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: weightTargetCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Target Weight (kg)',
-                        hintText: 'e.g. 68.0',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.monitor_weight_outlined),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Strict Discipline Mode', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                      subtitle: const Text('Highlights daily step and active compliance', style: TextStyle(fontSize: 12)),
-                      value: strictMode,
-                      activeThumbColor: ThemeService.primaryCyan,
-                      onChanged: (v) => setModalState(() => strictMode = v),
-                    ),
+                    Text('$curSym ${savings.toStringAsFixed(0)}', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: savings >= 0 ? AppColors.accentGreen : AppColors.accentRose)),
+                    Text('Monthly Net Savings', style: TextStyle(fontSize: 11.5, color: theme.hintColor)),
                   ],
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Cancel'),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('Top: $topCat', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                    Text('$curSym ${exp.toStringAsFixed(0)} Total Spent', style: TextStyle(fontSize: 11.5, color: theme.hintColor)),
+                  ],
                 ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ThemeService.primaryCyan,
-                    foregroundColor: Colors.black,
-                  ),
-                  onPressed: () {
-                    final newTitle = titleCtrl.text.trim();
-                    final newSteps = int.tryParse(stepCtrl.text.trim()) ?? profile.dailyStepTarget;
-                    final newActive = int.tryParse(activeCtrl.text.trim()) ?? profile.dailyActiveTimeMinutesTarget;
-                    final newTargetW = double.tryParse(weightTargetCtrl.text.trim()) ?? profile.targetWeightKg;
-
-                    profileService.updateStrictGoal(
-                      strictGoalTitle: newTitle.isNotEmpty ? newTitle : profile.strictGoalTitle,
-                      isStrictMode: strictMode,
-                      dailyStepTarget: newSteps,
-                      dailyActiveTimeMinutesTarget: newActive,
-                      targetWeightKg: newTargetW,
-                    );
-                    Navigator.of(ctx).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Strict Goal Protocol updated!')),
-                    );
-                  },
-                  child: const Text('Save Protocol'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _showCustomInputDialog(
-    BuildContext context, {
-    required String title,
-    required String initialVal,
-    required Function(String) onSaved,
-  }) {
-    final ctrl = TextEditingController(text: initialVal);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(border: OutlineInputBorder()),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: ThemeService.primaryCyan, foregroundColor: Colors.black),
-            onPressed: () {
-              onSaved(ctrl.text.trim());
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('Update'),
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildMiniMetric(String label, String value, String sub) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(fontSize: 11, color: theme.hintColor, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 2),
+        Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+        Text(sub, style: TextStyle(fontSize: 10.5, color: theme.hintColor)),
+      ],
     );
   }
 }

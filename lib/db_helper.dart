@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'models/workout_template_models.dart';
+import 'models/food_models.dart';
 
 class DBHelper {
   static final DBHelper instance = DBHelper._init();
@@ -11,6 +13,8 @@ class DBHelper {
   final List<Map<String, dynamic>> _inMemoryExpenses = [];
   final List<Map<String, dynamic>> _inMemoryStudy = [];
   final List<Map<String, dynamic>> _inMemoryFood = [];
+  final List<Map<String, dynamic>> _inMemoryMeals = [];
+  final Map<String, Map<String, dynamic>> _inMemoryWorkouts = {};
 
   DBHelper._init();
 
@@ -21,7 +25,7 @@ class DBHelper {
     if (isMockEnvironment) return null;
     if (_database != null) return _database!;
     try {
-      _database = await _initDB('growth_tracker.db');
+      _database = await _initDB('growth_tracker_v3.db');
       return _database!;
     } catch (_) {
       return null;
@@ -34,56 +38,42 @@ class DBHelper {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _createDB,
       onUpgrade: (db, oldVersion, newVersion) async {
-        if (oldVersion < 2) {
+        if (oldVersion < 3) {
           try {
             await db.execute('''
-              CREATE TABLE IF NOT EXISTS food_logs (
+              CREATE TABLE IF NOT EXISTS meals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                mealSlot TEXT NOT NULL,
-                type TEXT NOT NULL,
-                category TEXT NOT NULL,
-                quantity REAL NOT NULL,
-                unit TEXT NOT NULL,
-                calories REAL NOT NULL,
-                protein REAL NOT NULL,
-                carbs REAL NOT NULL,
-                fat REAL NOT NULL,
-                timeHour INTEGER NOT NULL,
-                timeMinute INTEGER NOT NULL,
-                date TEXT NOT NULL
+                mealType TEXT NOT NULL,
+                date TEXT NOT NULL,
+                photoPath TEXT,
+                photoBase64 TEXT,
+                foodItemsJson TEXT NOT NULL,
+                totalCalories REAL NOT NULL,
+                totalProtein REAL NOT NULL,
+                totalCarbs REAL NOT NULL,
+                totalFat REAL NOT NULL,
+                totalFiber REAL NOT NULL,
+                notes TEXT,
+                isAiAnalyzed INTEGER DEFAULT 1
+              )
+            ''');
+            await db.execute('''
+              CREATE TABLE IF NOT EXISTS workout_days (
+                dayName TEXT PRIMARY KEY,
+                workoutName TEXT NOT NULL,
+                targetMuscleGroup TEXT NOT NULL,
+                estimatedMinutes INTEGER NOT NULL,
+                difficulty TEXT NOT NULL,
+                status TEXT NOT NULL,
+                exercisesJson TEXT NOT NULL,
+                notes TEXT
               )
             ''');
           } catch (_) {}
         }
-      },
-      onOpen: (db) async {
-        try {
-          await db.execute('ALTER TABLE goals ADD COLUMN notifyUser INTEGER DEFAULT 1');
-        } catch (_) {}
-        try {
-          await db.execute('''
-            CREATE TABLE IF NOT EXISTS food_logs (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              name TEXT NOT NULL,
-              mealSlot TEXT NOT NULL,
-              type TEXT NOT NULL,
-              category TEXT NOT NULL,
-              quantity REAL NOT NULL,
-              unit TEXT NOT NULL,
-              calories REAL NOT NULL,
-              protein REAL NOT NULL,
-              carbs REAL NOT NULL,
-              fat REAL NOT NULL,
-              timeHour INTEGER NOT NULL,
-              timeMinute INTEGER NOT NULL,
-              date TEXT NOT NULL
-            )
-          ''');
-        } catch (_) {}
       },
     );
   }
@@ -115,7 +105,12 @@ class DBHelper {
         item TEXT NOT NULL,
         category TEXT NOT NULL,
         amount REAL NOT NULL,
-        date TEXT NOT NULL
+        date TEXT NOT NULL,
+        isCredit INTEGER DEFAULT 0,
+        partyName TEXT DEFAULT '',
+        paymentMethod TEXT DEFAULT 'UPI / Card',
+        isRecurring INTEGER DEFAULT 0,
+        notes TEXT DEFAULT ''
       )
     ''');
     await db.execute('''
@@ -146,6 +141,35 @@ class DBHelper {
         date TEXT NOT NULL
       )
     ''');
+    await db.execute('''
+      CREATE TABLE meals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        mealType TEXT NOT NULL,
+        date TEXT NOT NULL,
+        photoPath TEXT,
+        photoBase64 TEXT,
+        foodItemsJson TEXT NOT NULL,
+        totalCalories REAL NOT NULL,
+        totalProtein REAL NOT NULL,
+        totalCarbs REAL NOT NULL,
+        totalFat REAL NOT NULL,
+        totalFiber REAL NOT NULL,
+        notes TEXT,
+        isAiAnalyzed INTEGER DEFAULT 1
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE workout_days (
+        dayName TEXT PRIMARY KEY,
+        workoutName TEXT NOT NULL,
+        targetMuscleGroup TEXT NOT NULL,
+        estimatedMinutes INTEGER NOT NULL,
+        difficulty TEXT NOT NULL,
+        status TEXT NOT NULL,
+        exercisesJson TEXT NOT NULL,
+        notes TEXT
+      )
+    ''');
   }
 
   // --- GOALS CRUD ---
@@ -164,6 +188,8 @@ class DBHelper {
     if (db == null) return List.from(_inMemoryGoals);
     return await db.query('goals');
   }
+
+  Future<List<Map<String, dynamic>>> getGoals() => fetchGoals();
 
   Future<void> updateGoal(String id, int streak, String? lastDate) async {
     final db = await database;
@@ -225,20 +251,40 @@ class DBHelper {
     return await db.query('deleted_goals', orderBy: 'deletedAt DESC');
   }
 
+  Future<List<Map<String, dynamic>>> getDeletedGoals() => fetchDeletedGoals();
+
   // --- EXPENSES CRUD ---
   Future<void> insertExpense(Map<String, dynamic> expense) async {
     final db = await database;
     if (db == null) {
-      _inMemoryExpenses.insert(0, expense);
+      final newMap = Map<String, dynamic>.from(expense);
+      newMap['id'] = _inMemoryExpenses.length + 1;
+      _inMemoryExpenses.insert(0, newMap);
       return;
     }
     await db.insert('expenses', expense);
-   }
+  }
+
+  Future<void> addExpense(Map<String, dynamic> expense) => insertExpense(expense);
 
   Future<List<Map<String, dynamic>>> fetchExpenses() async {
     final db = await database;
     if (db == null) return List.from(_inMemoryExpenses);
     return await db.query('expenses', orderBy: 'date DESC');
+  }
+
+  Future<List<Map<String, dynamic>>> getExpenses() => fetchExpenses();
+
+  Future<void> updateExpense(int id, Map<String, dynamic> updated) async {
+    final db = await database;
+    if (db == null) {
+      final idx = _inMemoryExpenses.indexWhere((e) => e['id'] == id);
+      if (idx != -1) {
+        _inMemoryExpenses[idx] = {..._inMemoryExpenses[idx], ...updated};
+      }
+      return;
+    }
+    await db.update('expenses', updated, where: 'id = ?', whereArgs: [id]);
   }
 
   Future<void> deleteExpense(int id) async {
@@ -266,6 +312,9 @@ class DBHelper {
     return await db.query('study_logs', orderBy: 'date DESC');
   }
 
+  Future<List<Map<String, dynamic>>> getStudyLogs() => fetchStudyLogs();
+  Future<void> addStudyLog(Map<String, dynamic> log) => insertStudyLog(log);
+
   Future<void> deleteStudyLog(int id) async {
     final db = await database;
     if (db == null) {
@@ -275,7 +324,7 @@ class DBHelper {
     await db.delete('study_logs', where: 'id = ?', whereArgs: [id]);
   }
 
-  // --- FOOD LOGS CRUD ---
+  // --- FOOD LOGS CRUD (Legacy & Quick Log) ---
   Future<int> insertFoodLog(Map<String, dynamic> log) async {
     final db = await database;
     if (db == null) {
@@ -287,11 +336,15 @@ class DBHelper {
     return await db.insert('food_logs', log);
   }
 
+  Future<int> addFoodLog(Map<String, dynamic> log) => insertFoodLog(log);
+
   Future<List<Map<String, dynamic>>> fetchFoodLogs() async {
     final db = await database;
     if (db == null) return List.from(_inMemoryFood);
     return await db.query('food_logs', orderBy: 'id DESC');
   }
+
+  Future<List<Map<String, dynamic>>> getFoodLogs() => fetchFoodLogs();
 
   Future<void> deleteFoodLog(int id) async {
     final db = await database;
@@ -301,4 +354,97 @@ class DBHelper {
     }
     await db.delete('food_logs', where: 'id = ?', whereArgs: [id]);
   }
+
+  // --- MEALS CRUD (Photo AI & Structured Food Records) ---
+  Future<int> insertMeal(MealRecord meal) async {
+    final map = meal.toMap();
+    final db = await database;
+    if (db == null) {
+      final newId = _inMemoryMeals.length + 1;
+      map['id'] = newId;
+      _inMemoryMeals.insert(0, map);
+      return newId;
+    }
+    return await db.insert('meals', map);
+  }
+
+  Future<List<MealRecord>> fetchMeals() async {
+    final db = await database;
+    List<Map<String, dynamic>> maps;
+    if (db == null) {
+      maps = List.from(_inMemoryMeals);
+    } else {
+      maps = await db.query('meals', orderBy: 'date DESC');
+    }
+    return maps.map((e) => MealRecord.fromMap(e)).toList();
+  }
+
+  Future<List<MealRecord>> getMeals() => fetchMeals();
+
+  Future<void> updateMeal(MealRecord meal) async {
+    final map = meal.toMap();
+    final db = await database;
+    if (db == null) {
+      final idx = _inMemoryMeals.indexWhere((e) => e['id'] == meal.id);
+      if (idx != -1) {
+        _inMemoryMeals[idx] = map;
+      }
+      return;
+    }
+    await db.update('meals', map, where: 'id = ?', whereArgs: [meal.id]);
+  }
+
+  Future<void> deleteMeal(dynamic id) async {
+    final db = await database;
+    final idStr = id.toString();
+    if (db == null) {
+      _inMemoryMeals.removeWhere((e) => e['id'].toString() == idStr);
+      return;
+    }
+    await db.delete('meals', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // --- 7-DAY WORKOUT PLANS CRUD ---
+  Future<void> saveWorkoutDay(WorkoutDayPlan plan) async {
+    final map = plan.toMap();
+    final db = await database;
+    if (db == null) {
+      _inMemoryWorkouts[plan.dayName] = map;
+      return;
+    }
+    await db.insert('workout_days', map, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> saveWorkoutPlan(WorkoutDayPlan plan) => saveWorkoutDay(plan);
+
+  Future<List<WorkoutDayPlan>> fetchWorkoutPlans() async {
+    final db = await database;
+    List<Map<String, dynamic>> maps = [];
+    if (db == null) {
+      if (_inMemoryWorkouts.isEmpty) {
+        final defaults = WorkoutPresetSplits.getDefaultWeeklyPlan();
+        for (var p in defaults) {
+          _inMemoryWorkouts[p.dayName] = p.toMap();
+        }
+      }
+      maps = _inMemoryWorkouts.values.toList();
+    } else {
+      maps = await db.query('workout_days');
+      if (maps.isEmpty) {
+        final defaults = WorkoutPresetSplits.getDefaultWeeklyPlan();
+        for (var p in defaults) {
+          await db.insert('workout_days', p.toMap());
+        }
+        maps = await db.query('workout_days');
+      }
+    }
+
+    final list = maps.map((e) => WorkoutDayPlan.fromMap(e)).toList();
+    // Sort in Monday-Sunday order
+    const order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    list.sort((a, b) => order.indexOf(a.dayName).compareTo(order.indexOf(b.dayName)));
+    return list;
+  }
+
+  Future<List<WorkoutDayPlan>> getWorkoutPlans() => fetchWorkoutPlans();
 }

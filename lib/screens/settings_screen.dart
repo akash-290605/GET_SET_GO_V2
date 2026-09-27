@@ -1,15 +1,11 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
-import '../services/profile_service.dart';
-import '../services/finance_service.dart';
-import '../services/food_service.dart';
-import '../services/gemini_service.dart';
-import '../services/theme_service.dart';
-import '../services/workout_service.dart';
+import 'package:flutter/services.dart';
+import '../db_helper.dart';
 import '../models/food_models.dart';
-import '../widgets/account_cloud_modal.dart';
-import '../widgets/body_photo_modal.dart';
-import '../widgets/weekly_report_modal.dart';
+import '../services/gemini_service.dart';
+import '../services/profile_service.dart';
+import '../services/theme_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -20,816 +16,516 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+  void initState() {
+    super.initState();
+    ThemeService.instance.addListener(_refresh);
+    ProfileService.instance.addListener(_refresh);
+  }
 
-    final themeService = ThemeService.instance;
-    final authService = AuthService.instance;
-    final profileService = ProfileService.instance;
-    final geminiService = GeminiService.instance;
-    final foodService = FoodService.instance;
-    final financeService = FinanceService.instance;
+  @override
+  void dispose() {
+    ThemeService.instance.removeListener(_refresh);
+    ProfileService.instance.removeListener(_refresh);
+    super.dispose();
+  }
 
-    return AnimatedBuilder(
-      animation: Listenable.merge([themeService, authService, profileService, geminiService, foodService, financeService]),
-      builder: (context, _) {
-        final profile = profileService.profile;
-        final user = authService.currentUser;
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
 
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Settings & Configuration'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.cloud_sync_outlined),
-                tooltip: 'Cloud Sync & Vault',
-                onPressed: () => AccountCloudModal.show(context),
+  // Edit Profile Modal
+  void _openProfileEditor() {
+    final nameCtrl = TextEditingController(text: ProfileService.instance.userName);
+    final ageCtrl = TextEditingController(text: ProfileService.instance.age.toString());
+    final heightCtrl = TextEditingController(text: ProfileService.instance.heightCm.toStringAsFixed(0));
+    final weightCtrl = TextEditingController(text: ProfileService.instance.weightKg.toStringAsFixed(1));
+    final targetWeightCtrl = TextEditingController(text: ProfileService.instance.targetWeightKg.toStringAsFixed(1));
+    String goal = ProfileService.instance.fitnessGoal;
+    String activity = ProfileService.instance.activityLevel;
+    String equip = ProfileService.instance.availableEquipment;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDlgState) => AlertDialog(
+          backgroundColor: Theme.of(context).cardColor,
+          title: const Text('Edit Profile & Body Metrics', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Full Name', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: ageCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Age', border: OutlineInputBorder()),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: heightCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Height (cm)', border: OutlineInputBorder()),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: weightCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Current Weight (kg)', border: OutlineInputBorder()),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: targetWeightCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Target Weight (kg)', border: OutlineInputBorder()),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: goal,
+                  decoration: const InputDecoration(labelText: 'Fitness Goal', border: OutlineInputBorder()),
+                  items: ['Muscle Gain & Hypertrophy', 'Fat Loss & Shred', 'Athletic Endurance', 'Maintenance & Mobility'].map((g) => DropdownMenuItem(value: g, child: Text(g, style: const TextStyle(fontSize: 12.5)))).toList(),
+                  onChanged: (val) {
+                    if (val != null) setDlgState(() => goal = val);
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: activity,
+                  decoration: const InputDecoration(labelText: 'Activity Level', border: OutlineInputBorder()),
+                  items: ['Sedentary', 'Lightly Active (1-3 days)', 'Moderately Active (3-5 days)', 'Very Active (6-7 days)'].map((a) => DropdownMenuItem(value: a, child: Text(a, style: const TextStyle(fontSize: 12.5)))).toList(),
+                  onChanged: (val) {
+                    if (val != null) setDlgState(() => activity = val);
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: TextEditingController(text: equip),
+                  decoration: const InputDecoration(labelText: 'Available Equipment', border: OutlineInputBorder()),
+                  onChanged: (v) => equip = v,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+              onPressed: () async {
+                await ProfileService.instance.updateProfile(
+                  name: nameCtrl.text.trim(),
+                  age: int.tryParse(ageCtrl.text),
+                  heightCm: double.tryParse(heightCtrl.text),
+                  weightKg: double.tryParse(weightCtrl.text),
+                  targetWeightKg: double.tryParse(targetWeightCtrl.text),
+                  fitnessGoal: goal,
+                  activityLevel: activity,
+                  availableEquipment: equip,
+                );
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (mounted) setState(() {});
+              },
+              child: const Text('Save Profile', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Edit Finance Preferences Modal
+  void _openFinanceSettings() {
+    final currencyCtrl = TextEditingController(text: ProfileService.instance.currencySymbol);
+    final budgetCtrl = TextEditingController(text: ProfileService.instance.monthlyBudgetCap.toStringAsFixed(0));
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        title: const Text('Finance & Budget Preferences', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: currencyCtrl,
+              decoration: const InputDecoration(labelText: 'Currency Symbol (e.g. ₹, \$, €, £)', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: budgetCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Monthly Budget Cap', border: OutlineInputBorder()),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.secondary),
+            onPressed: () async {
+              await ProfileService.instance.updateFinance(
+                currencySymbol: currencyCtrl.text.trim().isEmpty ? '₹' : currencyCtrl.text.trim(),
+                monthlyBudgetCap: double.tryParse(budgetCtrl.text) ?? 50000.0,
+              );
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (mounted) setState(() {});
+            },
+            child: const Text('Save Finance', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Edit Nutrition Targets Modal
+  void _openNutritionSettings() {
+    final target = ProfileService.instance.nutritionTarget;
+    final calCtrl = TextEditingController(text: target.calorieTarget.toStringAsFixed(0));
+    final proCtrl = TextEditingController(text: target.proteinTargetGrams.toStringAsFixed(0));
+    final carbCtrl = TextEditingController(text: target.carbTargetGrams.toStringAsFixed(0));
+    final fatCtrl = TextEditingController(text: target.fatTargetGrams.toStringAsFixed(0));
+    final fiberCtrl = TextEditingController(text: target.fiberTargetGrams.toStringAsFixed(0));
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        title: const Text('Daily Nutrition Targets', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: calCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Daily Calories (kcal)', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: proCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Protein (g)', border: OutlineInputBorder()),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: carbCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Carbs (g)', border: OutlineInputBorder()),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: fatCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Fats (g)', border: OutlineInputBorder()),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: fiberCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Fiber (g)', border: OutlineInputBorder()),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-          body: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            children: [
-              // 1. Account & Profile Header Card
-              _buildProfileCard(user, profile, isDark, profileService),
-              const SizedBox(height: 18),
-
-              // 1.5 Strict Goal & Telemetry Settings
-              _buildSectionHeader('STRICT GOALS & TELEMETRY PROTOCOL'),
-              _buildStrictGoalsCard(profile, profileService, isDark),
-              const SizedBox(height: 18),
-
-              // 2. Appearance Section
-              _buildSectionHeader('APPEARANCE & THEME'),
-              _buildAppearanceCard(themeService, isDark),
-              const SizedBox(height: 18),
-
-              // 3. AI Preferences & Gemini API Key
-              _buildSectionHeader('TITAN AI & GEMINI CONFIGURATION'),
-              _buildAiConfigCard(geminiService, isDark),
-              const SizedBox(height: 18),
-
-              // 4. Fitness & Nutrition Targets
-              _buildSectionHeader('NUTRITION & MACRO TARGETS'),
-              _buildNutritionTargetsCard(foodService, isDark),
-              const SizedBox(height: 18),
-
-              // 5. Finance Preferences
-              _buildSectionHeader('FINANCE & CURRENCY PREFERENCES'),
-              _buildFinanceConfigCard(profile, financeService, profileService, isDark),
-              const SizedBox(height: 18),
-
-              // 6. Data Management & Reset
-              _buildSectionHeader('DATA MANAGEMENT & BACKUP'),
-              _buildDataManagementCard(context, isDark),
-              const SizedBox(height: 36),
-            ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
           ),
-        );
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.accentGreen),
+            onPressed: () async {
+              final newTarget = DailyNutritionTarget(
+                calorieTarget: double.tryParse(calCtrl.text) ?? 2200.0,
+                proteinTargetGrams: double.tryParse(proCtrl.text) ?? 140.0,
+                carbTargetGrams: double.tryParse(carbCtrl.text) ?? 250.0,
+                fatTargetGrams: double.tryParse(fatCtrl.text) ?? 65.0,
+                fiberTargetGrams: double.tryParse(fiberCtrl.text) ?? 30.0,
+              );
+              await ProfileService.instance.updateNutritionTarget(newTarget);
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (mounted) setState(() {});
+            },
+            child: const Text('Save Targets', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Edit Gemini API Key Modal
+  void _openGeminiApiKeyDialog() {
+    final keyCtrl = TextEditingController(text: GeminiService.instance.customApiKey ?? '');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        title: const Text('Google Gemini API Key', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Enter your Gemini API Key for online multimodal food vision and advanced reasoning:', style: TextStyle(fontSize: 12.5)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: keyCtrl,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'API Key (AIzaSy...)', border: OutlineInputBorder()),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            onPressed: () async {
+              await GeminiService.instance.setCustomApiKey(keyCtrl.text.trim());
+              if (ctx.mounted) {
+                Navigator.pop(ctx);
+              }
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Gemini API key updated!'), backgroundColor: AppColors.accentGreen),
+                );
+              }
+            },
+            child: const Text('Save Key', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Backup / Export Data Dialog
+  Future<void> _exportDataDialog() async {
+    final expenses = await DBHelper.instance.getExpenses();
+    final meals = await DBHelper.instance.getMeals();
+    final workouts = await DBHelper.instance.getWorkoutPlans();
+
+    final backupJson = jsonEncode({
+      'exportDate': DateTime.now().toIso8601String(),
+      'profile': {
+        'name': ProfileService.instance.userName,
+        'weight': ProfileService.instance.weightKg,
+        'targetWeight': ProfileService.instance.targetWeightKg,
+        'budget': ProfileService.instance.monthlyBudgetCap,
       },
+      'expenses': expenses,
+      'meals': meals.map((m) => m.toMap()).toList(),
+      'workouts': workouts.map((w) => w.toMap()).toList(),
+    });
+
+    await Clipboard.setData(ClipboardData(text: backupJson));
+
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Theme.of(context).cardColor,
+          title: const Text('Backup Copied to Clipboard', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: const Text('Your entire application data (Profile, Fitness, Nutrition, and Finance logs) has been formatted as JSON and copied to your clipboard.'),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Got it'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = ProfileService.instance;
+    final currentThemeMode = ThemeService.instance.themeMode;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Settings & Preferences', style: TextStyle(fontWeight: FontWeight.bold)),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        children: [
+          // Profile & Body Metrics Section
+          _buildSectionHeader('Profile & Fitness Metrics'),
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: AppColors.primary,
+                child: Icon(Icons.person_rounded, color: Colors.white),
+              ),
+              title: Text(profile.userName, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('${profile.fitnessGoal} • ${profile.weightKg} kg (Target: ${profile.targetWeightKg} kg)'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: _openProfileEditor,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Appearance & Theme Mode Section
+          _buildSectionHeader('Appearance & Theme'),
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: Icon(
+                    currentThemeMode == AppThemeMode.dark ? Icons.dark_mode_rounded : Icons.dark_mode_outlined,
+                    color: currentThemeMode == AppThemeMode.dark ? AppColors.primary : null,
+                  ),
+                  title: const Text('Dark Mode (Deep Slate)', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Optimized for low-light & OLED screens', style: TextStyle(fontSize: 12)),
+                  trailing: currentThemeMode == AppThemeMode.dark ? const Icon(Icons.check_circle_rounded, color: AppColors.primary) : null,
+                  onTap: () => ThemeService.instance.setThemeMode(AppThemeMode.dark),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: Icon(
+                    currentThemeMode == AppThemeMode.light ? Icons.light_mode_rounded : Icons.light_mode_outlined,
+                    color: currentThemeMode == AppThemeMode.light ? AppColors.primary : null,
+                  ),
+                  title: const Text('Light Mode (Crisp Snow)', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Clean daytime contrast', style: TextStyle(fontSize: 12)),
+                  trailing: currentThemeMode == AppThemeMode.light ? const Icon(Icons.check_circle_rounded, color: AppColors.primary) : null,
+                  onTap: () => ThemeService.instance.setThemeMode(AppThemeMode.light),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: Icon(
+                    currentThemeMode == AppThemeMode.system ? Icons.settings_system_daydream_rounded : Icons.settings_system_daydream_outlined,
+                    color: currentThemeMode == AppThemeMode.system ? AppColors.primary : null,
+                  ),
+                  title: const Text('System Default', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Follows operating system preferences', style: TextStyle(fontSize: 12)),
+                  trailing: currentThemeMode == AppThemeMode.system ? const Icon(Icons.check_circle_rounded, color: AppColors.primary) : null,
+                  onTap: () => ThemeService.instance.setThemeMode(AppThemeMode.system),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Finance & Nutrition Section
+          _buildSectionHeader('Finance & Nutrition Preferences'),
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.account_balance_wallet_outlined, color: AppColors.secondary),
+                  title: const Text('Currency & Budget Cap', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text('${profile.currencySymbol} • Monthly Budget: ${profile.currencySymbol} ${profile.monthlyBudgetCap.toStringAsFixed(0)}'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: _openFinanceSettings,
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.restaurant_outlined, color: AppColors.accentGreen),
+                  title: const Text('Daily Macro Targets', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text('${profile.nutritionTarget.calorieTarget.toStringAsFixed(0)} kcal • ${profile.nutritionTarget.proteinTargetGrams.toStringAsFixed(0)}g Protein'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: _openNutritionSettings,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // AI Coach Configuration
+          _buildSectionHeader('AI Intelligence & Keys'),
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: ListTile(
+              leading: const Icon(Icons.auto_awesome_rounded, color: AppColors.accentAmber),
+              title: const Text('Gemini API Key', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(GeminiService.instance.customApiKey != null && GeminiService.instance.customApiKey!.isNotEmpty ? 'Configured (Active)' : 'Default Antigravity Neural Engine'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: _openGeminiApiKeyDialog,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Data Management & Backup
+          _buildSectionHeader('Data Management'),
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.cloud_download_outlined, color: AppColors.accentBlue),
+                  title: const Text('Export / Backup Data', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Copy full JSON backup to clipboard', style: TextStyle(fontSize: 12)),
+                  trailing: const Icon(Icons.copy_rounded),
+                  onTap: _exportDataDialog,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 40),
+        ],
+      ),
     );
   }
 
   Widget _buildSectionHeader(String title) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 8),
       child: Text(
-        title,
-        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.grey, letterSpacing: 0.8),
-      ),
-    );
-  }
-
-  // 1. Profile Editor Card
-  Widget _buildProfileCard(dynamic user, dynamic profile, bool isDark, ProfileService profileService) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0)),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: ThemeService.primaryCyan.withValues(alpha: 0.2),
-                backgroundImage: user?.photoUrl.isNotEmpty == true ? NetworkImage(user.photoUrl) : null,
-                child: user?.photoUrl.isEmpty == true ? const Icon(Icons.person, color: ThemeService.primaryCyan, size: 30) : null,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(profile.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${profile.fitnessGoal} • ${profile.currentWeightKg}kg • ${profile.activityLevel}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ),
-              OutlinedButton(
-                onPressed: () => _showProfileEditor(context, profileService),
-                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
-                child: const Text('Edit Profile', style: TextStyle(fontSize: 12)),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 1.5 Strict Goals & Telemetry Card
-  Widget _buildStrictGoalsCard(UserProfile profile, ProfileService profileService, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: profile.isStrictMode
-              ? ThemeService.primaryCyan.withValues(alpha: 0.4)
-              : (isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0)),
+        title.toUpperCase(),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: theme.hintColor,
+          letterSpacing: 1.1,
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: ThemeService.primaryCyan.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.shield_outlined, color: ThemeService.primaryCyan, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Text(
-                          'Strict Goal Protocol',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                        const SizedBox(width: 8),
-                        if (profile.isStrictMode)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: ThemeService.primaryCyan.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text(
-                              'STRICT ACTIVE',
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w900,
-                                color: ThemeService.primaryCyan,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      profile.strictGoalTitle,
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              Switch(
-                value: profile.isStrictMode,
-                activeTrackColor: ThemeService.primaryCyan,
-                onChanged: (val) {
-                  profileService.updateStrictGoal(isStrictMode: val);
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Daily Step Target', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${profile.dailyStepTarget} steps',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: ThemeService.primaryCyan),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Daily Active Target', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${profile.dailyActiveTimeMinutesTarget} mins',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orangeAccent),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Current BMI', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${profile.bmi.toStringAsFixed(1)} (${profile.bmiCategory})',
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: ThemeService.primaryEmerald),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              OutlinedButton.icon(
-                onPressed: () => _showStrictGoalEditor(context, profileService),
-                icon: const Icon(Icons.tune, size: 14),
-                label: const Text('Edit Targets & Goal', style: TextStyle(fontSize: 12)),
-                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
-              ),
-              OutlinedButton.icon(
-                onPressed: () => WeeklyReportModal.show(context),
-                icon: const Icon(Icons.analytics_outlined, size: 14, color: ThemeService.primaryCyan),
-                label: const Text('Weekly BMI Report', style: TextStyle(fontSize: 12, color: ThemeService.primaryCyan)),
-                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
-              ),
-              OutlinedButton.icon(
-                onPressed: () => BodyPhotoModal.show(context),
-                icon: const Icon(Icons.camera_alt_outlined, size: 14, color: ThemeService.primaryEmerald),
-                label: Text('Body Photos (${profile.bodyPhotos.length})', style: const TextStyle(fontSize: 12, color: ThemeService.primaryEmerald)),
-                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showStrictGoalEditor(BuildContext context, ProfileService profileService) {
-    final p = profileService.profile;
-    final titleCtrl = TextEditingController(text: p.strictGoalTitle);
-    final stepCtrl = TextEditingController(text: p.dailyStepTarget.toString());
-    final activeCtrl = TextEditingController(text: p.dailyActiveTimeMinutesTarget.toString());
-    bool isStrict = p.isStrictMode;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Container(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-              ),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF161B22) : Colors.white,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Strict Goal & Telemetry Target',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 20),
-                          onPressed: () => Navigator.pop(ctx),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: titleCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Strict Goal Heading Banner',
-                        hintText: 'e.g. Strict 10,000 Steps & Lean Hypertrophy Protocol',
-                        prefixIcon: Icon(Icons.flag_outlined),
-                      ),
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: stepCtrl,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Daily Step Target',
-                              prefixIcon: Icon(Icons.directions_walk_rounded),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: TextField(
-                            controller: activeCtrl,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Active Time (Mins)',
-                              prefixIcon: Icon(Icons.timer_outlined),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Enforce Strict Mode Protocol', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      subtitle: const Text('Highlight strict discipline banners and target compliance badges', style: TextStyle(fontSize: 12)),
-                      value: isStrict,
-                      activeTrackColor: ThemeService.primaryCyan,
-                      onChanged: (val) => setModalState(() => isStrict = val),
-                    ),
-                    const SizedBox(height: 18),
-                    ElevatedButton(
-                      onPressed: () {
-                        final st = int.tryParse(stepCtrl.text.trim()) ?? p.dailyStepTarget;
-                        final at = int.tryParse(activeCtrl.text.trim()) ?? p.dailyActiveTimeMinutesTarget;
-                        profileService.updateStrictGoal(
-                          strictGoalTitle: titleCtrl.text.trim().isNotEmpty ? titleCtrl.text.trim() : p.strictGoalTitle,
-                          dailyStepTarget: st,
-                          dailyActiveTimeMinutesTarget: at,
-                          isStrictMode: isStrict,
-                        );
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Strict Goal Protocol updated successfully!')),
-                        );
-                      },
-                      child: const Text('Save Strict Goal Protocol'),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // 2. Appearance Selector
-  Widget _buildAppearanceCard(ThemeService themeService, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text('Theme Mode', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-          SegmentedButton<AppThemeMode>(
-            segments: const [
-              ButtonSegment(value: AppThemeMode.dark, label: Text('Dark'), icon: Icon(Icons.dark_mode_outlined, size: 16)),
-              ButtonSegment(value: AppThemeMode.light, label: Text('Light'), icon: Icon(Icons.light_mode_outlined, size: 16)),
-              ButtonSegment(value: AppThemeMode.system, label: Text('System'), icon: Icon(Icons.phone_android, size: 16)),
-            ],
-            selected: {themeService.mode},
-            onSelectionChanged: (set) {
-              themeService.setMode(set.first);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 3. AI Config Card
-  Widget _buildAiConfigCard(GeminiService gemini, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.vpn_key_outlined, size: 20, color: ThemeService.primaryCyan),
-              const SizedBox(width: 10),
-              const Text('Gemini API Key', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-              const Spacer(),
-              Text(
-                gemini.apiKey.isNotEmpty ? 'Active' : 'Offline Grounded Engine',
-                style: TextStyle(fontSize: 12, color: gemini.apiKey.isNotEmpty ? ThemeService.primaryEmerald : Colors.grey),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            obscureText: true,
-            controller: TextEditingController(text: gemini.apiKey),
-            onSubmitted: (val) => gemini.setApiKey(val),
-            decoration: InputDecoration(
-              hintText: 'Paste Google Gemini API Key...',
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.save, size: 18),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Gemini API configuration updated!')),
-                  );
-                },
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Active AI Model', style: TextStyle(fontSize: 13)),
-              DropdownButton<String>(
-                value: gemini.selectedModel,
-                items: const [
-                  DropdownMenuItem(value: 'gemini-1.5-flash', child: Text('Gemini 1.5 Flash')),
-                  DropdownMenuItem(value: 'gemini-2.0-flash', child: Text('Gemini 2.0 Flash')),
-                ],
-                onChanged: (val) {
-                  if (val != null) gemini.setModel(val);
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 4. Nutrition Targets Card
-  Widget _buildNutritionTargetsCard(FoodService food, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0)),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Calorie Target', style: TextStyle(fontSize: 13)),
-              Text('${food.macroTargets.calorieTarget.toStringAsFixed(0)} kcal', style: const TextStyle(fontWeight: FontWeight.bold)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Protein Target', style: TextStyle(fontSize: 13)),
-              Text('${food.macroTargets.proteinTargetGrams.toStringAsFixed(0)} g', style: const TextStyle(fontWeight: FontWeight.bold)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Daily Hydration Target', style: TextStyle(fontSize: 13)),
-              Text('${(food.macroTargets.waterMlTarget / 1000).toStringAsFixed(1)} L', style: const TextStyle(fontWeight: FontWeight.bold)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton(
-            onPressed: () => _showMacroEditor(context, food),
-            child: const Text('Update Nutrition Targets'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 5. Finance Config Card
-  Widget _buildFinanceConfigCard(dynamic profile, FinanceService finance, ProfileService profileService, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0)),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Currency Symbol', style: TextStyle(fontSize: 13)),
-              DropdownButton<String>(
-                value: profile.currencySymbol,
-                items: const [
-                  DropdownMenuItem(value: '₹', child: Text('INR (₹)')),
-                  DropdownMenuItem(value: '\$', child: Text('USD (\$)')),
-                  DropdownMenuItem(value: '€', child: Text('EUR (€)')),
-                  DropdownMenuItem(value: '£', child: Text('GBP (£)')),
-                ],
-                onChanged: (sym) {
-                  if (sym != null) {
-                    profileService.updateProfile(profile.copyWith(currencySymbol: sym));
-                  }
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Monthly Target Budget', style: TextStyle(fontSize: 13)),
-              Text('${profile.currencySymbol}${finance.monthlyBudget.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 6. Data Management Card
-  Widget _buildDataManagementCard(BuildContext context, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0)),
-      ),
-      child: Column(
-        children: [
-          ListTile(
-            leading: const Icon(Icons.cloud_sync, color: ThemeService.primaryCyan),
-            title: const Text('Cloud Firestore & Portable Vault', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-            subtitle: const Text('Backup or restore JSON vault', style: TextStyle(fontSize: 12)),
-            trailing: const Icon(Icons.chevron_right),
-            contentPadding: EdgeInsets.zero,
-            onTap: () => AccountCloudModal.show(context),
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.restart_alt, color: Colors.orangeAccent),
-            title: const Text('Reset Workouts to Default Split', style: TextStyle(fontSize: 14)),
-            contentPadding: EdgeInsets.zero,
-            onTap: () async {
-              await WorkoutService.instance.resetAllToDefaults();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reset workout schedule to default science-backed split!')));
-              }
-            },
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.logout, color: Colors.redAccent),
-            title: const Text('Sign Out Session', style: TextStyle(fontSize: 14, color: Colors.redAccent)),
-            contentPadding: EdgeInsets.zero,
-            onTap: () async {
-              await AuthService.instance.signOut();
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showProfileEditor(BuildContext context, ProfileService profileService) {
-    final p = profileService.profile;
-    final nameCtrl = TextEditingController(text: p.name);
-    final ageCtrl = TextEditingController(text: p.age.toString());
-    final heightCtrl = TextEditingController(text: p.heightCm.toString());
-    final weightCtrl = TextEditingController(text: p.currentWeightKg.toString());
-    final targetWeightCtrl = TextEditingController(text: p.targetWeightKg.toString());
-    String goal = p.fitnessGoal;
-    String activity = p.activityLevel;
-    String equip = p.availableEquipment;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Container(
-              padding: EdgeInsets.only(left: 20, right: 20, top: 20, bottom: MediaQuery.of(ctx).viewInsets.bottom + 20),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF161B22) : Colors.white,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Text('Edit Profile & Biometrics', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 14),
-                    TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Display Name')),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(child: TextField(controller: ageCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Age'))),
-                        const SizedBox(width: 8),
-                        Expanded(child: TextField(controller: heightCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Height (cm)'))),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(child: TextField(controller: weightCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Current Weight (kg)'))),
-                        const SizedBox(width: 8),
-                        Expanded(child: TextField(controller: targetWeightCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Target Weight (kg)'))),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<String>(
-                      initialValue: goal,
-                      decoration: const InputDecoration(labelText: 'Fitness Goal'),
-                      items: ['Muscle Gain', 'Weight Loss', 'Endurance', 'Maintenance']
-                          .map((g) => DropdownMenuItem(value: g, child: Text(g)))
-                          .toList(),
-                      onChanged: (val) {
-                        if (val != null) setModalState(() => goal = val);
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<String>(
-                      initialValue: activity,
-                      decoration: const InputDecoration(labelText: 'Activity Level'),
-                      items: ['Sedentary', 'Lightly Active', 'Moderately Active', 'Very Active']
-                          .map((a) => DropdownMenuItem(value: a, child: Text(a)))
-                          .toList(),
-                      onChanged: (val) {
-                        if (val != null) setModalState(() => activity = val);
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<String>(
-                      initialValue: equip,
-                      decoration: const InputDecoration(labelText: 'Available Equipment'),
-                      items: ['Full Gym', 'Dumbbells & Bands', 'Home / Bodyweight']
-                          .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                          .toList(),
-                      onChanged: (val) {
-                        if (val != null) setModalState(() => equip = val);
-                      },
-                    ),
-                    const SizedBox(height: 18),
-                    ElevatedButton(
-                      onPressed: () {
-                        profileService.updateProfile(p.copyWith(
-                          name: nameCtrl.text.trim(),
-                          age: int.tryParse(ageCtrl.text) ?? p.age,
-                          heightCm: double.tryParse(heightCtrl.text) ?? p.heightCm,
-                          currentWeightKg: double.tryParse(weightCtrl.text) ?? p.currentWeightKg,
-                          targetWeightKg: double.tryParse(targetWeightCtrl.text) ?? p.targetWeightKg,
-                          fitnessGoal: goal,
-                          activityLevel: activity,
-                          availableEquipment: equip,
-                        ));
-                        Navigator.pop(ctx);
-                      },
-                      child: const Text('Save Profile'),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _showMacroEditor(BuildContext context, FoodService food) {
-    final calCtrl = TextEditingController(text: food.macroTargets.calorieTarget.toStringAsFixed(0));
-    final proCtrl = TextEditingController(text: food.macroTargets.proteinTargetGrams.toStringAsFixed(0));
-    final carbCtrl = TextEditingController(text: food.macroTargets.carbsTargetGrams.toStringAsFixed(0));
-    final fatCtrl = TextEditingController(text: food.macroTargets.fatTargetGrams.toStringAsFixed(0));
-    final waterCtrl = TextEditingController(text: food.macroTargets.waterMlTarget.toStringAsFixed(0));
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        return Container(
-          padding: EdgeInsets.only(left: 20, right: 20, top: 20, bottom: MediaQuery.of(ctx).viewInsets.bottom + 20),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF161B22) : Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('Configure Macro Targets', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(child: TextField(controller: calCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Calories (kcal)'))),
-                  const SizedBox(width: 10),
-                  Expanded(child: TextField(controller: proCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Protein (g)'))),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(child: TextField(controller: carbCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Carbs (g)'))),
-                  const SizedBox(width: 10),
-                  Expanded(child: TextField(controller: fatCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Fat (g)'))),
-                ],
-              ),
-              const SizedBox(height: 10),
-              TextField(controller: waterCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Water Target (ml)')),
-              const SizedBox(height: 18),
-              ElevatedButton(
-                onPressed: () {
-                  food.updateTargets(MacroTargets(
-                    calorieTarget: double.tryParse(calCtrl.text) ?? 2200.0,
-                    proteinTargetGrams: double.tryParse(proCtrl.text) ?? 130.0,
-                    carbsTargetGrams: double.tryParse(carbCtrl.text) ?? 250.0,
-                    fatTargetGrams: double.tryParse(fatCtrl.text) ?? 65.0,
-                    waterMlTarget: double.tryParse(waterCtrl.text) ?? 3000.0,
-                  ));
-                  Navigator.pop(ctx);
-                },
-                child: const Text('Update Targets'),
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 }
