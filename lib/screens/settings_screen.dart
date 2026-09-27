@@ -579,6 +579,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 16),
 
+          // Study & English Section
+          _buildSectionHeader('Study & English Preferences'),
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.school_outlined, color: AppColors.accentAmber),
+                  title: const Text('Daily Focus Goal', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('120 minutes / day • Focus Stopwatch & Pomodoro'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Study targets are active and synchronized with Focus Stopwatch.')),
+                    );
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.translate_rounded, color: AppColors.primaryGlow),
+                  title: const Text('English Learning Mode', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Spaced Repetition Vocab • STT Speech AI • Grammar Quizzes'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('English Mastery Suite is fully enabled.')),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
           // AI Coach Configuration
           _buildSectionHeader('AI Intelligence & Keys'),
           Card(

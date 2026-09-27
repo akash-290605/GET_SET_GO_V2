@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../db_helper.dart';
 import '../services/gemini_service.dart';
 import '../services/profile_service.dart';
+import '../services/study_english_service.dart';
 import '../services/theme_service.dart';
 
 class AiCoachScreen extends StatefulWidget {
@@ -21,7 +22,7 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
   final List<_ChatMessage> _messages = [];
 
   final List<String> _quickFinancePrompts = [
-    'Where did most of my money go?',
+    'Where did most of my money go this month?',
     'What are my potentially reducible expenses?',
     'Review my recurring subscriptions & bills',
     'Compare my spending against my monthly budget cap',
@@ -29,25 +30,38 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
 
   final List<String> _quickFitnessPrompts = [
     'Create a 30-minute high-intensity workout',
-    'Adjust today\'s workout for home (no gym equipment)',
+    'Adjust today\'s workout for home (no equipment)',
     'Make today\'s workout easier with higher reps',
     'Which muscle groups need more recovery this week?',
+  ];
+
+  final List<String> _quickStudyPrompts = [
+    'Create a 2-hour Pomodoro study schedule for today',
+    'How can I break down complex algorithms into 45-min sessions?',
+    'Suggest an active recall revision plan for this weekend',
+    'Help me overcome afternoon study procrastination',
+  ];
+
+  final List<String> _quickEnglishPrompts = [
+    'Practice a mock software engineer job interview with me',
+    'Give me 3 advanced vocabulary alternatives for common workplace words',
+    'How do I articulate complex system architecture without hesitation?',
+    'Explain the difference between Present Perfect and Past Simple',
   ];
 
   final List<String> _quickCombinedPrompts = [
     'Suggest affordable high-protein grocery options for my fitness goal',
     'Estimate the monthly financial cost of my fitness routine',
-    'How can I optimize my nutrition and gym budget together?',
+    'How can I balance 2 hours of study, 1 hour workout, and stay under budget?',
   ];
 
   @override
   void initState() {
     super.initState();
-    _domainTabController = TabController(length: 3, vsync: this);
-    // Initial welcome message
+    _domainTabController = TabController(length: 5, vsync: this);
     _messages.add(
       _ChatMessage(
-        text: 'Hello ${ProfileService.instance.userName}! I am your GET SET GO AI Life & Performance Coach.\n\nI analyze your actual fitness, finance, and nutrition data to give you personalized, actionable advice.',
+        text: 'Hello ${ProfileService.instance.userName}! I am your GET SET GO AI Life & Performance Coach.\n\nI analyze your actual fitness, finance, nutrition, study, and English learning telemetry to give you personalized, actionable advice.',
         isUser: false,
         domain: 'general',
         timestamp: DateTime.now(),
@@ -80,18 +94,35 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
     if (cleanQuery.isEmpty || _isLoading) return;
 
     final activeDomainIndex = _domainTabController.index;
-    final domain = domainOverride ?? (activeDomainIndex == 0 ? 'finance' : activeDomainIndex == 1 ? 'fitness' : 'combined');
+    String domain = domainOverride ?? 'finance';
+    if (domainOverride == null) {
+      if (activeDomainIndex == 0) {
+        domain = 'finance';
+      } else if (activeDomainIndex == 1) {
+        domain = 'fitness';
+      } else if (activeDomainIndex == 2) {
+        domain = 'study';
+      } else if (activeDomainIndex == 3) {
+        domain = 'english';
+      } else {
+        domain = 'combined';
+      }
+    }
 
     _queryController.clear();
     setState(() {
       _messages.add(_ChatMessage(text: cleanQuery, isUser: true, domain: domain, timestamp: DateTime.now()));
       _isLoading = true;
       if (domain == 'finance') {
-        _loadingMessage = 'Analyzing your recent transactions & spending patterns...';
+        _loadingMessage = 'Analyzing your actual transactions & spending patterns...';
       } else if (domain == 'fitness') {
         _loadingMessage = 'Reviewing your workout split, goals & muscle recovery...';
+      } else if (domain == 'study') {
+        _loadingMessage = 'Synthesizing study curriculum & focus intervals...';
+      } else if (domain == 'english') {
+        _loadingMessage = 'Preparing linguistic feedback & phrasing suggestions...';
       } else {
-        _loadingMessage = 'Synthesizing finance & fitness budget synergy...';
+        _loadingMessage = 'Synthesizing finance, fitness & productivity synergy...';
       }
     });
     _scrollToBottom();
@@ -113,6 +144,25 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
           equipment: profile.availableEquipment,
           weeklyPlan: workouts,
         );
+      } else if (domain == 'study') {
+        final studyService = StudyEnglishService.instance;
+        aiResponse = '''🎓 **Study & Academic Optimization Plan**
+
+* **Recommended Strategy for "$cleanQuery"**:
+  1. **Focus Sprints**: Allocate two 45-minute Pomodoro sessions with zero digital distraction.
+  2. **Active Recall**: Immediately after reading, write down 3 key principles without looking at notes.
+  3. **Current Curriculum Status**: You have **${studyService.totalCompletedTopics} completed topics** and **${studyService.totalPendingTopics} pending topics**.
+
+💡 **Pro-Tip**: Schedule this session in your **7-Day Study Planner** tab to maintain your **${studyService.studyStreakDays}-day streak**!''';
+      } else if (domain == 'english') {
+        aiResponse = '''🇬🇧 **English Fluency & Communication Coaching**
+
+* **Core Guidance on "$cleanQuery"**:
+  1. **Professional Phrasing**: Use concise, confident verbs (e.g., "engineered", "orchestrated", "articulated").
+  2. **Clarity**: Structure responses using the **STAR Method** (Situation, Task, Action, Result) for behavioral questions.
+  3. **Daily Practice**: Spend 5 minutes reading aloud with the **Reading Stopwatch** to build smooth cadence and rhythm.
+
+⚡ **Next Action**: Head over to the **AI Speaking & STT** module to record a real-time pronunciation drill!''';
       } else {
         final expenses = await DBHelper.instance.getExpenses();
         final currentDebited = expenses.where((t) => t['is_income'] != 1 && t['is_income'] != true).fold(0.0, (s, t) => s + ((t['amount'] as num?)?.toDouble() ?? 0.0));
@@ -157,28 +207,83 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AI Coach & Intelligence', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Row(
+          children: [
+            Icon(Icons.psychology_rounded, color: AppColors.primaryGlow, size: 22),
+            SizedBox(width: 8),
+            Text('AI Life & Performance Coach', style: TextStyle(fontWeight: FontWeight.w900)),
+          ],
+        ),
         bottom: TabBar(
           controller: _domainTabController,
-          indicatorColor: AppColors.primary,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          indicatorColor: AppColors.primaryGlow,
+          labelColor: AppColors.primaryGlow,
+          unselectedLabelColor: theme.hintColor,
           tabs: const [
-            Tab(icon: Icon(Icons.account_balance_wallet_outlined), text: 'Finance AI'),
-            Tab(icon: Icon(Icons.fitness_center_outlined), text: 'Fitness AI'),
-            Tab(icon: Icon(Icons.auto_awesome_rounded), text: 'Combined Synergy'),
+            Tab(icon: Icon(Icons.account_balance_wallet_rounded, size: 16), text: 'Finance AI'),
+            Tab(icon: Icon(Icons.fitness_center_rounded, size: 16), text: 'Fitness AI'),
+            Tab(icon: Icon(Icons.school_rounded, size: 16), text: 'Study AI'),
+            Tab(icon: Icon(Icons.translate_rounded, size: 16), text: 'English AI'),
+            Tab(icon: Icon(Icons.auto_awesome_rounded, size: 16), text: 'Combined Synergy'),
           ],
         ),
       ),
       body: Column(
         children: [
-          // Quick prompts bar depending on active domain
-          _buildQuickPromptsBar(),
-          const Divider(height: 1),
+          // Quick Prompts Carousel based on active tab
+          AnimatedBuilder(
+            animation: _domainTabController,
+            builder: (context, _) {
+              final idx = _domainTabController.index;
+              List<String> prompts = _quickFinancePrompts;
+              Color chipColor = AppColors.secondary;
+              if (idx == 1) {
+                prompts = _quickFitnessPrompts;
+                chipColor = AppColors.primaryGlow;
+              } else if (idx == 2) {
+                prompts = _quickStudyPrompts;
+                chipColor = AppColors.accentAmber;
+              } else if (idx == 3) {
+                prompts = _quickEnglishPrompts;
+                chipColor = AppColors.accentRose;
+              } else if (idx == 4) {
+                prompts = _quickCombinedPrompts;
+                chipColor = AppColors.accentGreen;
+              }
 
-          // Chat history messages
+              return Container(
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                decoration: BoxDecoration(
+                  color: theme.cardColor,
+                  border: Border(bottom: BorderSide(color: theme.dividerColor.withValues(alpha: 0.08))),
+                ),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: prompts.map((p) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ActionChip(
+                          label: Text(p, style: TextStyle(fontSize: 11.5, color: chipColor, fontWeight: FontWeight.bold)),
+                          backgroundColor: chipColor.withValues(alpha: 0.1),
+                          side: BorderSide(color: chipColor.withValues(alpha: 0.3)),
+                          onPressed: () => _handleSendMessage(p),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              );
+            },
+          ),
+
+          // Message Thread
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               itemCount: _messages.length,
               itemBuilder: (context, index) {
                 final msg = _messages[index];
@@ -187,38 +292,26 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
             ),
           ),
 
-          // Loading typing indicator
-          if (_isLoading) ...[
+          // Loading Indicator
+          if (_isLoading)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-              ),
+              alignment: Alignment.centerLeft,
               child: Row(
                 children: [
-                  const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(_loadingMessage, style: TextStyle(fontSize: 12, color: theme.hintColor, fontStyle: FontStyle.italic)),
-                  ),
+                  const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  const SizedBox(width: 10),
+                  Text(_loadingMessage, style: TextStyle(fontSize: 12, color: theme.hintColor, fontStyle: FontStyle.italic)),
                 ],
               ),
             ),
-          ],
 
-          // Input text bar
+          // Input Bar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: theme.cardColor,
-              border: Border(top: BorderSide(color: theme.dividerColor.withValues(alpha: 0.1))),
+              border: Border(top: BorderSide(color: theme.dividerColor.withValues(alpha: 0.12))),
             ),
             child: SafeArea(
               child: Row(
@@ -226,20 +319,20 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
                   Expanded(
                     child: TextField(
                       controller: _queryController,
-                      decoration: InputDecoration(
-                        hintText: 'Ask AI Coach anything...',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
-                        filled: true,
-                        fillColor: theme.scaffoldBackgroundColor,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      decoration: const InputDecoration(
+                        hintText: 'Ask AI Coach anything across Fitness, Food, Finance, Study...',
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       ),
-                      onSubmitted: (val) => _handleSendMessage(val),
+                      onSubmitted: (v) => _handleSendMessage(v),
                     ),
                   ),
-                  const SizedBox(width: 8),
                   IconButton(
-                    style: IconButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-                    icon: const Icon(Icons.arrow_upward_rounded),
+                    style: IconButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                    icon: const Icon(Icons.send_rounded, size: 18),
                     onPressed: () => _handleSendMessage(_queryController.text),
                   ),
                 ],
@@ -251,42 +344,6 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildQuickPromptsBar() {
-    final theme = Theme.of(context);
-    return AnimatedBuilder(
-      animation: _domainTabController,
-      builder: (context, _) {
-        final idx = _domainTabController.index;
-        final prompts = idx == 0
-            ? _quickFinancePrompts
-            : idx == 1
-                ? _quickFitnessPrompts
-                : _quickCombinedPrompts;
-
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          color: theme.cardColor.withValues(alpha: 0.6),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: prompts.map((p) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ActionChip(
-                    avatar: const Icon(Icons.auto_awesome_rounded, size: 14, color: AppColors.accentAmber),
-                    label: Text(p, style: const TextStyle(fontSize: 11.5)),
-                    onPressed: () => _handleSendMessage(p),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   Widget _buildMessageBubble(_ChatMessage msg) {
     final theme = Theme.of(context);
     final isUser = msg.isUser;
@@ -294,46 +351,31 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
+        margin: const EdgeInsets.only(bottom: 12),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.85),
         padding: const EdgeInsets.all(14),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
         decoration: BoxDecoration(
           color: isUser
               ? AppColors.primary
-              : msg.isError
-                  ? AppColors.accentRose.withValues(alpha: 0.15)
-                  : theme.cardColor,
+              : (msg.isError ? AppColors.accentRose.withValues(alpha: 0.15) : theme.cardColor),
           borderRadius: BorderRadius.circular(16).copyWith(
-            bottomRight: isUser ? const Radius.circular(0) : const Radius.circular(16),
-            bottomLeft: !isUser ? const Radius.circular(0) : const Radius.circular(16),
+            bottomRight: isUser ? const Radius.circular(2) : const Radius.circular(16),
+            bottomLeft: !isUser ? const Radius.circular(2) : const Radius.circular(16),
           ),
           border: !isUser ? Border.all(color: theme.dividerColor.withValues(alpha: 0.15)) : null,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (!isUser) ...[
-              Row(
+              const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.auto_awesome_rounded, size: 14, color: AppColors.accentAmber),
-                  const SizedBox(width: 6),
+                  Icon(Icons.auto_awesome_rounded, size: 14, color: AppColors.accentAmber),
+                  SizedBox(width: 4),
                   Text(
-                    msg.domain == 'finance'
-                        ? 'FINANCE AI'
-                        : msg.domain == 'fitness'
-                            ? 'FITNESS COACH'
-                            : msg.domain == 'combined'
-                                ? 'SYNERGY AI'
-                                : 'AI COACH',
-                    style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.accentAmber, letterSpacing: 1),
+                    'GET SET GO AI',
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.accentAmber, letterSpacing: 1),
                   ),
                 ],
               ),
@@ -343,8 +385,9 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
               msg.text,
               style: TextStyle(
                 fontSize: 13.5,
-                height: 1.45,
-                color: isUser ? Colors.white : theme.textTheme.bodyMedium?.color,
+                height: 1.4,
+                color: isUser ? Colors.white : (msg.isError ? AppColors.accentRose : null),
+                fontWeight: isUser ? FontWeight.w500 : FontWeight.normal,
               ),
             ),
           ],

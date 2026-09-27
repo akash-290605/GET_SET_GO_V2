@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../db_helper.dart';
+import '../models/study_english_models.dart';
+import '../services/study_english_service.dart';
 import '../services/theme_service.dart';
+import 'english_learning_screen.dart';
 
 class StudyAndEnglishScreen extends StatefulWidget {
   const StudyAndEnglishScreen({super.key});
@@ -10,73 +13,55 @@ class StudyAndEnglishScreen extends StatefulWidget {
   State<StudyAndEnglishScreen> createState() => _StudyAndEnglishScreenState();
 }
 
-class _StudyAndEnglishScreenState extends State<StudyAndEnglishScreen> with SingleTickerProviderStateMixin {
+class _StudyAndEnglishScreenState extends State<StudyAndEnglishScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final service = StudyEnglishService.instance;
 
-  // Study Tracker State
-  int _studyElapsedSeconds = 0;
-  bool _isStudyTimerRunning = false;
-  Timer? _studyTimer;
-  final TextEditingController _subjectCtrl = TextEditingController(text: 'General');
-  final TextEditingController _studyTopicCtrl = TextEditingController();
+  // Focus Timer / Pomodoro State
+  bool _isPomodoroMode = false;
+  final int _pomodoroWorkMinutes = 25;
+  final int _pomodoroBreakMinutes = 5;
+  bool _isPomodoroBreak = false;
+  int _timerRemainingSeconds = 25 * 60;
+  int _stopwatchElapsedSeconds = 0;
+  bool _isTimerRunning = false;
+  Timer? _activeTimer;
+
+  final TextEditingController _sessionSubjectCtrl = TextEditingController(text: 'Computer Science');
+  final TextEditingController _sessionTopicCtrl = TextEditingController();
+
   List<Map<String, dynamic>> _studyLogs = [];
   bool _isLoadingLogs = true;
 
-  // STT & English Mastery State
-  bool _isRecordingSTT = false;
-  String _sttTranscribedText = '';
-  final String _practiceSentence = 'Consistency and daily deliberate practice build undeniable mastery.';
-  double _pronunciationScore = 0.0;
-
-  // Vocabulary State
-  final List<Map<String, String>> _vocabularyList = [
-    {
-      'word': 'Relentless',
-      'meaning': 'Continuing without becoming weaker or less severe.',
-      'example': 'His relentless work ethic inspired the entire team.'
-    },
-    {
-      'word': 'Discipline',
-      'meaning': 'The practice of training people to obey rules or a code of behavior.',
-      'example': 'Discipline is choosing between what you want now and what you want most.'
-    },
-    {
-      'word': 'Stoicism',
-      'meaning': 'The endurance of pain or hardship without the display of feelings and without complaint.',
-      'example': 'She maintained calm stoicism during the difficult period.'
-    },
-  ];
-  final TextEditingController _wordCtrl = TextEditingController();
-  final TextEditingController _meaningCtrl = TextEditingController();
-  final TextEditingController _exampleCtrl = TextEditingController();
-
-  // Reading Timer State
-  int _selectedReadingMinutes = 15;
-  int _readingRemainingSeconds = 15 * 60;
-  bool _isReadingTimerActive = false;
-  Timer? _readingTimer;
-
-  // Daily Video status
-  bool _isVideoUploaded = false;
+  // Selected day for 7-day planner
+  String _selectedPlannerDay = 'Monday';
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadStudyLogs();
+    service.addListener(_onServiceChanged);
+
+    // Set default day to today's weekday
+    final days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    final weekday = DateTime.now().weekday - 1;
+    _selectedPlannerDay = days[weekday.clamp(0, 6)];
   }
 
   @override
   void dispose() {
-    _studyTimer?.cancel();
-    _readingTimer?.cancel();
+    service.removeListener(_onServiceChanged);
+    _activeTimer?.cancel();
     _tabController.dispose();
-    _subjectCtrl.dispose();
-    _studyTopicCtrl.dispose();
-    _wordCtrl.dispose();
-    _meaningCtrl.dispose();
-    _exampleCtrl.dispose();
+    _sessionSubjectCtrl.dispose();
+    _sessionTopicCtrl.dispose();
     super.dispose();
+  }
+
+  void _onServiceChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadStudyLogs() async {
@@ -90,176 +75,100 @@ class _StudyAndEnglishScreenState extends State<StudyAndEnglishScreen> with Sing
     }
   }
 
-  // --- Study Timer Methods ---
-  void _toggleStudyTimer() {
-    if (_isStudyTimerRunning) {
-      _studyTimer?.cancel();
-      setState(() => _isStudyTimerRunning = false);
+  // --- Timer Controls ---
+  void _toggleTimer() {
+    if (_isTimerRunning) {
+      _activeTimer?.cancel();
+      setState(() => _isTimerRunning = false);
     } else {
-      setState(() => _isStudyTimerRunning = true);
-      _studyTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        if (mounted) {
-          setState(() => _studyElapsedSeconds++);
+      setState(() => _isTimerRunning = true);
+      _activeTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        if (_isPomodoroMode) {
+          if (_timerRemainingSeconds > 0) {
+            setState(() => _timerRemainingSeconds--);
+          } else {
+            // Pomodoro interval flip
+            _activeTimer?.cancel();
+            setState(() {
+              _isTimerRunning = false;
+              _isPomodoroBreak = !_isPomodoroBreak;
+              _timerRemainingSeconds = (_isPomodoroBreak ? _pomodoroBreakMinutes : _pomodoroWorkMinutes) * 60;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(_isPomodoroBreak ? '🔔 Focus session complete! Take a 5 min break.' : '⚡ Break over! Ready to focus?'),
+                backgroundColor: AppColors.accentGreen,
+              ),
+            );
+          }
+        } else {
+          setState(() => _stopwatchElapsedSeconds++);
         }
       });
     }
   }
 
-  void _resetStudyTimer() {
-    _studyTimer?.cancel();
+  void _resetTimer() {
+    _activeTimer?.cancel();
     setState(() {
-      _studyElapsedSeconds = 0;
-      _isStudyTimerRunning = false;
+      _isTimerRunning = false;
+      _stopwatchElapsedSeconds = 0;
+      _timerRemainingSeconds = _pomodoroWorkMinutes * 60;
+      _isPomodoroBreak = false;
     });
   }
 
-  String _formatDuration(int totalSecs) {
-    final h = (totalSecs ~/ 3600).toString().padLeft(2, '0');
-    final m = ((totalSecs % 3600) ~/ 60).toString().padLeft(2, '0');
+  String _formatTimer(int totalSecs) {
+    final m = (totalSecs ~/ 60).toString().padLeft(2, '0');
     final s = (totalSecs % 60).toString().padLeft(2, '0');
-    return '$h:$m:$s';
+    final h = (totalSecs ~/ 3600);
+    if (h > 0) {
+      return '$h:${(m).padLeft(2, '0')}:$s';
+    }
+    return '$m:$s';
   }
 
   Future<void> _saveStudySession() async {
-    final topic = _studyTopicCtrl.text.trim();
+    final topic = _sessionTopicCtrl.text.trim();
     if (topic.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a study topic / subject name.')),
-      );
-      return;
-    }
-    if (_studyElapsedSeconds < 10) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Study timer duration must be at least 10 seconds.')),
+        const SnackBar(content: Text('Please enter a study topic / concept name.')),
       );
       return;
     }
 
-    final mins = (_studyElapsedSeconds / 60).ceil();
+    final durationSec = _isPomodoroMode ? (_pomodoroWorkMinutes * 60 - _timerRemainingSeconds) : _stopwatchElapsedSeconds;
+    if (durationSec < 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Study duration must be at least 10 seconds.')),
+      );
+      return;
+    }
+
+    final mins = (durationSec / 60).ceil();
     final timeSpent = mins >= 60 ? '${(mins / 60).toStringAsFixed(1)} hrs' : '$mins mins';
 
     await DBHelper.instance.insertStudyLog({
-      'subject': _subjectCtrl.text.trim().isEmpty ? 'General' : _subjectCtrl.text.trim(),
+      'subject': _sessionSubjectCtrl.text.trim().isEmpty ? 'General' : _sessionSubjectCtrl.text.trim(),
       'topic': topic,
-      'desc': 'Logged via Live Focus Stopwatch',
+      'desc': _isPomodoroMode ? 'Pomodoro Deep Focus' : 'Live Focus Stopwatch',
       'timeSpent': timeSpent,
       'date': DateTime.now().toIso8601String(),
     });
 
-    _studyTopicCtrl.clear();
-    _resetStudyTimer();
+    _sessionTopicCtrl.clear();
+    _resetTimer();
     await _loadStudyLogs();
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Study session "$topic" ($timeSpent) saved!'),
+          content: Text('Saved study session "$topic" ($timeSpent)! 🎓'),
           backgroundColor: AppColors.accentGreen,
         ),
       );
     }
-  }
-
-  Future<void> _deleteStudyLog(int id, String topic) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Study Log?'),
-        content: Text('Are you sure you want to delete the study log for "$topic"?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.accentRose),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      await DBHelper.instance.deleteStudyLog(id);
-      await _loadStudyLogs();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('🗑️ Study session "$topic" removed.')),
-        );
-      }
-    }
-  }
-
-  // --- STT Practice Simulation ---
-  void _toggleSTTRecording() {
-    if (_isRecordingSTT) {
-      setState(() {
-        _isRecordingSTT = false;
-        _sttTranscribedText = 'Consistency and daily deliberate practice build undeniable mastery.';
-        _pronunciationScore = 96.5;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Speech analysis complete: 96.5% Fluency & Clarity Score! ⭐'),
-          backgroundColor: AppColors.accentGreen,
-        ),
-      );
-    } else {
-      setState(() {
-        _isRecordingSTT = true;
-        _sttTranscribedText = 'Listening to your speech in real-time...';
-        _pronunciationScore = 0.0;
-      });
-    }
-  }
-
-  // --- Reading Timer Methods ---
-  void _startReadingTimer() {
-    _readingTimer?.cancel();
-    setState(() => _isReadingTimerActive = true);
-    _readingTimer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (_readingRemainingSeconds > 0) {
-        if (mounted) setState(() => _readingRemainingSeconds--);
-      } else {
-        t.cancel();
-        if (mounted) {
-          setState(() => _isReadingTimerActive = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('🎉 Reading session completed! Great job!'), backgroundColor: AppColors.accentGreen),
-          );
-        }
-      }
-    });
-  }
-
-  void _pauseReadingTimer() {
-    _readingTimer?.cancel();
-    setState(() => _isReadingTimerActive = false);
-  }
-
-  void _resetReadingTimer(int mins) {
-    _readingTimer?.cancel();
-    setState(() {
-      _selectedReadingMinutes = mins;
-      _readingRemainingSeconds = mins * 60;
-      _isReadingTimerActive = false;
-    });
-  }
-
-  void _addVocabularyWord() {
-    final w = _wordCtrl.text.trim();
-    final m = _meaningCtrl.text.trim();
-    final ex = _exampleCtrl.text.trim();
-    if (w.isEmpty || m.isEmpty) return;
-
-    setState(() {
-      _vocabularyList.insert(0, {'word': w, 'meaning': m, 'example': ex});
-      _wordCtrl.clear();
-      _meaningCtrl.clear();
-      _exampleCtrl.clear();
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Added "$w" to Vocabulary Bank!'), backgroundColor: AppColors.primary),
-    );
   }
 
   @override
@@ -268,30 +177,512 @@ class _StudyAndEnglishScreenState extends State<StudyAndEnglishScreen> with Sing
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Study Tracker & STT English', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Row(
+          children: [
+            Icon(Icons.school_rounded, color: AppColors.primaryGlow, size: 22),
+            SizedBox(width: 8),
+            Text('Study & Academics Hub', style: TextStyle(fontWeight: FontWeight.w900)),
+          ],
+        ),
+        actions: [
+          TextButton.icon(
+            style: TextButton.styleFrom(foregroundColor: AppColors.secondary),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EnglishLearningScreen())),
+            icon: const Icon(Icons.translate_rounded, size: 16),
+            label: const Text('English Suite', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: AppColors.primaryGlow,
           labelColor: AppColors.primaryGlow,
           unselectedLabelColor: theme.hintColor,
           tabs: const [
-            Tab(icon: Icon(Icons.timer_outlined, size: 18), text: 'Study Tracker'),
-            Tab(icon: Icon(Icons.record_voice_over_rounded, size: 18), text: 'STT & English'),
+            Tab(icon: Icon(Icons.dashboard_outlined, size: 18), text: 'Subjects & Topics'),
+            Tab(icon: Icon(Icons.calendar_month_rounded, size: 18), text: '7-Day Planner'),
+            Tab(icon: Icon(Icons.timer_outlined, size: 18), text: 'Focus & Pomodoro'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildStudyTrackerTab(),
-          _buildSttEnglishTab(),
+          _buildSubjectsTab(),
+          _buildPlannerTab(),
+          _buildFocusTimerTab(),
         ],
       ),
     );
   }
 
-  // --- TAB 1: Focus Study Tracker ---
-  Widget _buildStudyTrackerTab() {
+  // ================= 1. SUBJECTS & TOPICS =================
+  Widget _buildSubjectsTab() {
+    final theme = Theme.of(context);
+    final subjects = service.subjects;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Stats
+          Row(
+            children: [
+              _buildStudyStatCard('Active Subjects', '${subjects.length}', AppColors.primaryGlow),
+              const SizedBox(width: 8),
+              _buildStudyStatCard('Mastered Topics', '${service.totalCompletedTopics}', AppColors.accentGreen),
+              const SizedBox(width: 8),
+              _buildStudyStatCard('Pending Topics', '${service.totalPendingTopics}', AppColors.accentAmber),
+              const SizedBox(width: 8),
+              _buildStudyStatCard('Study Streak', '${service.studyStreakDays} Days', AppColors.accentRose),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Add Subject Action Button
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Coursework & Subjects', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () => _showAddSubjectDialog(context),
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text('New Subject', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Subject Cards
+          if (subjects.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(color: theme.cardColor, borderRadius: BorderRadius.circular(16)),
+              child: const Center(child: Text('No subjects added yet. Tap "New Subject" to begin.')),
+            )
+          else
+            ...subjects.map((s) => _buildSubjectCard(s)),
+
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStudyStatCard(String label, String value, Color color) {
+    final theme = Theme.of(context);
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+        decoration: BoxDecoration(
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Column(
+          children: [
+            Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: color)),
+            const SizedBox(height: 2),
+            Text(label, style: TextStyle(fontSize: 9.5, color: theme.hintColor, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubjectCard(StudySubject subject) {
+    final theme = Theme.of(context);
+    final color = Color(subject.colorValue);
+    final progress = subject.completionProgress;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(subject.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.add_task_rounded, size: 20, color: AppColors.primaryGlow),
+                    tooltip: 'Add Topic',
+                    onPressed: () => _showAddTopicDialog(context, subject),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.accentRose),
+                    tooltip: 'Delete Subject',
+                    onPressed: () => service.deleteSubject(subject.id),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (subject.notes.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(subject.notes, style: TextStyle(fontSize: 12, color: theme.hintColor)),
+          ],
+          const SizedBox(height: 10),
+
+          // Progress Bar
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('${subject.topics.where((t) => t.isCompleted).length} of ${subject.topics.length} topics done', style: TextStyle(fontSize: 11, color: theme.hintColor)),
+              Text('${(progress * 100).toStringAsFixed(0)}%', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: color)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 6,
+              backgroundColor: theme.dividerColor.withValues(alpha: 0.1),
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Topics Checklist
+          if (subject.topics.isNotEmpty) ...[
+            ...subject.topics.map((topic) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: theme.scaffoldBackgroundColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: topic.isCompleted,
+                      activeColor: color,
+                      visualDensity: VisualDensity.compact,
+                      onChanged: (_) => service.toggleTopicCompletion(subject.id, topic.id),
+                    ),
+                    Expanded(
+                      child: Text(
+                        topic.title,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
+                          decoration: topic.isCompleted ? TextDecoration.lineThrough : null,
+                          color: topic.isCompleted ? theme.hintColor : null,
+                        ),
+                      ),
+                    ),
+                    Text('${topic.estimatedMinutes}m', style: TextStyle(fontSize: 11, color: theme.hintColor)),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _showAddSubjectDialog(BuildContext context) {
+    final nameCtrl = TextEditingController();
+    final notesCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        title: const Text('Add Subject / Course', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Subject Name (e.g. Operating Systems)', border: OutlineInputBorder())),
+            const SizedBox(height: 10),
+            TextField(controller: notesCtrl, decoration: const InputDecoration(labelText: 'Notes / Target Goals', border: OutlineInputBorder())),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            onPressed: () async {
+              final n = nameCtrl.text.trim();
+              if (n.isEmpty) return;
+              final newSub = StudySubject(
+                id: 'sub_${DateTime.now().millisecondsSinceEpoch}',
+                name: n,
+                notes: notesCtrl.text.trim(),
+                colorValue: 0xFF8B5CF6,
+              );
+              await service.addSubject(newSub);
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('Create Subject'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddTopicDialog(BuildContext context, StudySubject subject) {
+    final titleCtrl = TextEditingController();
+    final minsCtrl = TextEditingController(text: '45');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        title: Text('Add Topic to ${subject.name}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Topic Title', border: OutlineInputBorder())),
+            const SizedBox(height: 10),
+            TextField(controller: minsCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Estimated Minutes', border: OutlineInputBorder())),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            onPressed: () async {
+              final t = titleCtrl.text.trim();
+              if (t.isEmpty) return;
+              final mins = int.tryParse(minsCtrl.text.trim()) ?? 45;
+              subject.topics.add(StudyTopic(id: 't_${DateTime.now().millisecondsSinceEpoch}', title: t, estimatedMinutes: mins));
+              await service.saveSubjects();
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('Add Topic'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================= 2. 7-DAY STUDY PLANNER =================
+  Widget _buildPlannerTab() {
+    final theme = Theme.of(context);
+    final days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    final daySessions = service.plannerSessions.where((s) => s.dayName == _selectedPlannerDay).toList();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Day selector chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: days.map((d) {
+                final isSelected = _selectedPlannerDay == d;
+                final count = service.plannerSessions.where((s) => s.dayName == d).length;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text('$d ($count)'),
+                    selected: isSelected,
+                    selectedColor: AppColors.primary.withValues(alpha: 0.25),
+                    onSelected: (sel) {
+                      if (sel) setState(() => _selectedPlannerDay = d);
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Planner Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('$_selectedPlannerDay Study Plan', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () => _showAddPlannerSessionDialog(context),
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text('Add Session', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          if (daySessions.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(color: theme.cardColor, borderRadius: BorderRadius.circular(16)),
+              child: const Column(
+                children: [
+                  Icon(Icons.event_available_rounded, size: 36, color: AppColors.textMuted),
+                  SizedBox(height: 8),
+                  Text('No study sessions scheduled for this day.', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text('Tap "Add Session" to schedule focused topic slots.', style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                ],
+              ),
+            )
+          else
+            ...daySessions.map((session) => _buildPlannerSessionCard(session)),
+
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlannerSessionCard(StudyPlannerSession session) {
+    final theme = Theme.of(context);
+    Color statusColor;
+    String statusText;
+    switch (session.status) {
+      case StudySessionStatus.completed:
+        statusColor = AppColors.accentGreen;
+        statusText = 'Completed ✅';
+        break;
+      case StudySessionStatus.inProgress:
+        statusColor = AppColors.accentAmber;
+        statusText = 'In Progress ⏳';
+        break;
+      case StudySessionStatus.skipped:
+        statusColor = AppColors.accentRose;
+        statusText = 'Skipped ⏭️';
+        break;
+      case StudySessionStatus.planned:
+        statusColor = AppColors.secondary;
+        statusText = 'Planned 📌';
+        break;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+            child: Icon(Icons.school_rounded, color: statusColor, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(session.topicTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                Text('${session.subjectName} • ${session.durationMinutes} mins', style: TextStyle(fontSize: 11.5, color: theme.hintColor)),
+              ],
+            ),
+          ),
+          PopupMenuButton<StudySessionStatus>(
+            initialValue: session.status,
+            onSelected: (st) => service.updateSessionStatus(session.id, st),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(statusText, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: statusColor)),
+            ),
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: StudySessionStatus.planned, child: Text('Planned 📌')),
+              const PopupMenuItem(value: StudySessionStatus.inProgress, child: Text('In Progress ⏳')),
+              const PopupMenuItem(value: StudySessionStatus.completed, child: Text('Completed ✅')),
+              const PopupMenuItem(value: StudySessionStatus.skipped, child: Text('Skipped ⏭️')),
+            ],
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.accentRose),
+            onPressed: () => service.deletePlannerSession(session.id),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddPlannerSessionDialog(BuildContext context) {
+    final subCtrl = TextEditingController(text: 'Computer Science');
+    final topicCtrl = TextEditingController();
+    final minsCtrl = TextEditingController(text: '60');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        title: Text('Add Session for $_selectedPlannerDay', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: subCtrl, decoration: const InputDecoration(labelText: 'Subject', border: OutlineInputBorder())),
+            const SizedBox(height: 10),
+            TextField(controller: topicCtrl, decoration: const InputDecoration(labelText: 'Topic Title', border: OutlineInputBorder())),
+            const SizedBox(height: 10),
+            TextField(controller: minsCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Duration (Minutes)', border: OutlineInputBorder())),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            onPressed: () async {
+              final top = topicCtrl.text.trim();
+              if (top.isEmpty) return;
+              final mins = int.tryParse(minsCtrl.text.trim()) ?? 60;
+              final newSession = StudyPlannerSession(
+                id: 'plan_${DateTime.now().millisecondsSinceEpoch}',
+                dayName: _selectedPlannerDay,
+                subjectName: subCtrl.text.trim(),
+                topicTitle: top,
+                durationMinutes: mins,
+              );
+              await service.addPlannerSession(newSession);
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('Schedule'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================= 3. FOCUS TIMER & POMODORO =================
+  Widget _buildFocusTimerTab() {
     final theme = Theme.of(context);
 
     return SingleChildScrollView(
@@ -299,52 +690,95 @@ class _StudyAndEnglishScreenState extends State<StudyAndEnglishScreen> with Sing
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Stopwatch Card
+          // Mode Switcher (Stopwatch vs Pomodoro)
+          Row(
+            children: [
+              Expanded(
+                child: ChoiceChip(
+                  label: const Center(child: Text('Live Focus Stopwatch', style: TextStyle(fontWeight: FontWeight.bold))),
+                  selected: !_isPomodoroMode,
+                  selectedColor: AppColors.primary.withValues(alpha: 0.25),
+                  onSelected: (sel) {
+                    if (sel) {
+                      _resetTimer();
+                      setState(() => _isPomodoroMode = false);
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ChoiceChip(
+                  label: const Center(child: Text('Pomodoro 25/5 Min', style: TextStyle(fontWeight: FontWeight.bold))),
+                  selected: _isPomodoroMode,
+                  selectedColor: AppColors.accentAmber.withValues(alpha: 0.25),
+                  onSelected: (sel) {
+                    if (sel) {
+                      _resetTimer();
+                      setState(() => _isPomodoroMode = true);
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Main Clock Card
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: theme.cardColor,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+              border: Border.all(
+                color: _isPomodoroMode
+                    ? (_isPomodoroBreak ? AppColors.accentGreen : AppColors.accentAmber).withValues(alpha: 0.4)
+                    : AppColors.primary.withValues(alpha: 0.4),
+              ),
             ),
             child: Column(
               children: [
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.hourglass_top_rounded, color: AppColors.primaryGlow, size: 18),
-                    SizedBox(width: 8),
-                    Text('LIVE FOCUS STOPWATCH', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryGlow, letterSpacing: 1.1)),
-                  ],
-                ),
-                const SizedBox(height: 14),
                 Text(
-                  _formatDuration(_studyElapsedSeconds),
-                  style: const TextStyle(fontSize: 44, fontWeight: FontWeight.w900, letterSpacing: 2, fontFamily: 'monospace'),
+                  _isPomodoroMode
+                      ? (_isPomodoroBreak ? '☕ POMODORO BREAK TIME' : '⚡ POMODORO DEEP FOCUS')
+                      : '⏱️ LIVE FOCUS STOPWATCH',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                    color: _isPomodoroMode
+                        ? (_isPomodoroBreak ? AppColors.accentGreen : AppColors.accentAmber)
+                        : AppColors.primaryGlow,
+                  ),
                 ),
                 const SizedBox(height: 16),
+                Text(
+                  _formatTimer(_isPomodoroMode ? _timerRemainingSeconds : _stopwatchElapsedSeconds),
+                  style: const TextStyle(fontSize: 48, fontWeight: FontWeight.w900, letterSpacing: 2, fontFamily: 'monospace'),
+                ),
+                const SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _isStudyTimerRunning ? AppColors.accentRose : AppColors.primary,
+                        backgroundColor: _isTimerRunning ? AppColors.accentRose : AppColors.primary,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
-                      onPressed: _toggleStudyTimer,
-                      icon: Icon(_isStudyTimerRunning ? Icons.pause_rounded : Icons.play_arrow_rounded),
-                      label: Text(_isStudyTimerRunning ? 'Pause' : 'Start Focus', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      onPressed: _toggleTimer,
+                      icon: Icon(_isTimerRunning ? Icons.pause_rounded : Icons.play_arrow_rounded),
+                      label: Text(_isTimerRunning ? 'Pause' : 'Start Focus', style: const TextStyle(fontWeight: FontWeight.bold)),
                     ),
                     const SizedBox(width: 12),
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
-                      onPressed: _resetStudyTimer,
+                      onPressed: _resetTimer,
                       icon: const Icon(Icons.refresh_rounded, size: 18),
                       label: const Text('Reset'),
                     ),
@@ -366,28 +800,28 @@ class _StudyAndEnglishScreenState extends State<StudyAndEnglishScreen> with Sing
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Log Study Session', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
+                const Text('Save Completed Study Log', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 10),
                 Row(
                   children: [
                     Expanded(
                       flex: 1,
                       child: TextField(
-                        controller: _subjectCtrl,
-                        decoration: const InputDecoration(labelText: 'Subject (e.g. CS, Math)', border: OutlineInputBorder()),
+                        controller: _sessionSubjectCtrl,
+                        decoration: const InputDecoration(labelText: 'Subject', border: OutlineInputBorder()),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     Expanded(
                       flex: 2,
                       child: TextField(
-                        controller: _studyTopicCtrl,
-                        decoration: const InputDecoration(labelText: 'Topic Studied', border: OutlineInputBorder()),
+                        controller: _sessionTopicCtrl,
+                        decoration: const InputDecoration(labelText: 'Topic / Chapter', border: OutlineInputBorder()),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
@@ -421,319 +855,53 @@ class _StudyAndEnglishScreenState extends State<StudyAndEnglishScreen> with Sing
             const Center(child: CircularProgressIndicator())
           else if (_studyLogs.isEmpty)
             Container(
-              width: double.infinity,
               padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Column(
-                children: [
-                  Icon(Icons.school_outlined, size: 36, color: AppColors.textMuted),
-                  SizedBox(height: 8),
-                  Text('No study sessions logged yet.', style: TextStyle(fontWeight: FontWeight.w600)),
-                  Text('Start the stopwatch to record your study hours!', style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
-                ],
-              ),
+              decoration: BoxDecoration(color: theme.cardColor, borderRadius: BorderRadius.circular(16)),
+              child: const Center(child: Text('No study sessions logged yet. Record your focus time above!')),
             )
           else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _studyLogs.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final log = _studyLogs[index];
-                final id = log['id'] as int? ?? index;
-                final topic = log['topic'] ?? 'Study';
-                final subject = log['subject'] ?? 'General';
-                final timeSpent = log['timeSpent'] ?? '';
+            ..._studyLogs.map((log) {
+              final id = log['id'] as int? ?? 0;
+              final topic = log['topic'] ?? 'Study';
+              final subject = log['subject'] ?? 'General';
+              final timeSpent = log['timeSpent'] ?? '';
 
-                return Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: theme.cardColor,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(Icons.school_rounded, color: AppColors.primaryGlow, size: 20),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(topic, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
-                            Text('$subject • $timeSpent', style: TextStyle(fontSize: 11.5, color: theme.hintColor)),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline_rounded, color: AppColors.accentRose, size: 20),
-                        tooltip: 'Delete Log',
-                        onPressed: () => _deleteStudyLog(id, topic),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-        ],
-      ),
-    );
-  }
-
-  // --- TAB 2: STT & English Mastery ---
-  Widget _buildSttEnglishTab() {
-    final theme = Theme.of(context);
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Speech-to-Text & Pronunciation Practice
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.secondary.withValues(alpha: 0.3)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.cardColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                ),
+                child: Row(
                   children: [
-                    Icon(Icons.mic_rounded, color: AppColors.secondary, size: 20),
-                    SizedBox(width: 8),
-                    Text('STT & SPEECH PRONUNCIATION', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.secondary, letterSpacing: 1.1)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                const Text('Read & Speak this prompt out loud:', style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.secondary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text('“$_practiceSentence”', style: const TextStyle(fontSize: 13.5, fontStyle: FontStyle.italic, fontWeight: FontWeight.w600)),
-                ),
-                const SizedBox(height: 14),
-                if (_sttTranscribedText.isNotEmpty) ...[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: theme.scaffoldBackgroundColor,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: _pronunciationScore > 90 ? AppColors.accentGreen : AppColors.accentAmber),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+                      child: const Icon(Icons.school_rounded, color: AppColors.primaryGlow, size: 20),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Transcription: "$_sttTranscribedText"', style: const TextStyle(fontSize: 12.5)),
-                        if (_pronunciationScore > 0) ...[
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              const Icon(Icons.verified_rounded, color: AppColors.accentGreen, size: 16),
-                              const SizedBox(width: 4),
-                              Text('Pronunciation Score: $_pronunciationScore%', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.accentGreen)),
-                            ],
-                          ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(topic, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                          Text('$subject • $timeSpent', style: TextStyle(fontSize: 11.5, color: theme.hintColor)),
                         ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                Center(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _isRecordingSTT ? AppColors.accentRose : AppColors.secondary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                    onPressed: _toggleSTTRecording,
-                    icon: Icon(_isRecordingSTT ? Icons.stop_rounded : Icons.mic_rounded),
-                    label: Text(_isRecordingSTT ? 'Stop & Analyze Speech' : 'Hold / Tap to Speak (STT)', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Daily English Video Log Card
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.accentAmber.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.video_library_rounded, size: 36, color: _isVideoUploaded ? AppColors.accentGreen : AppColors.accentAmber),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(_isVideoUploaded ? 'Today\'s Speaking Video Attached ✅' : 'Daily Speaking Video Journal', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                      const Text('Upload 1-2 min video of yourself speaking English', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
-                    ],
-                  ),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _isVideoUploaded ? AppColors.accentGreen : AppColors.accentAmber,
-                    foregroundColor: Colors.black,
-                  ),
-                  onPressed: () {
-                    setState(() => _isVideoUploaded = !_isVideoUploaded);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(_isVideoUploaded ? 'Daily Speaking Video recorded & attached!' : 'Video removed.'),
-                        backgroundColor: AppColors.accentGreen,
-                      ),
-                    );
-                  },
-                  child: Text(_isVideoUploaded ? 'Attached' : 'Attach', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Vocabulary Bank
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.menu_book_rounded, color: AppColors.primaryGlow, size: 18),
-                    SizedBox(width: 6),
-                    Text('New Words & Meaning Bank', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(child: TextField(controller: _wordCtrl, decoration: const InputDecoration(labelText: 'Word', border: OutlineInputBorder()))),
-                    const SizedBox(width: 8),
-                    Expanded(flex: 2, child: TextField(controller: _meaningCtrl, decoration: const InputDecoration(labelText: 'Meaning', border: OutlineInputBorder()))),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(child: TextField(controller: _exampleCtrl, decoration: const InputDecoration(labelText: 'Example Sentence (Optional)', border: OutlineInputBorder()))),
-                    const SizedBox(width: 8),
-                    IconButton.filled(
-                      style: IconButton.styleFrom(backgroundColor: AppColors.primary),
-                      onPressed: _addVocabularyWord,
-                      icon: const Icon(Icons.add_rounded, color: Colors.white),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                ..._vocabularyList.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final v = entry.value;
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      title: Text(v['word'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryGlow, fontSize: 13.5)),
-                      subtitle: Text('${v['meaning']}${v['example'] != null && v['example']!.isNotEmpty ? '\nEx: "${v['example']}"' : ''}', style: const TextStyle(fontSize: 11.5)),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline_rounded, color: AppColors.accentRose, size: 18),
-                        onPressed: () => setState(() => _vocabularyList.removeAt(index)),
                       ),
                     ),
-                  );
-                }),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Distraction-Free Reading Timer
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.accentGreen.withValues(alpha: 0.3)),
-            ),
-            child: Column(
-              children: [
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.auto_stories_rounded, color: AppColors.accentGreen, size: 18),
-                    SizedBox(width: 6),
-                    Text('DISTRACTION-FREE READING TIMER', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.accentGreen, letterSpacing: 1.1)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [10, 15, 20, 30].map((mins) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                        child: ChoiceChip(
-                          label: Text('$mins min'),
-                          selected: _selectedReadingMinutes == mins,
-                          selectedColor: AppColors.accentGreen.withValues(alpha: 0.25),
-                          onSelected: (sel) {
-                            if (sel) _resetReadingTimer(mins);
-                          },
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(_formatDuration(_readingRemainingSeconds), style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w900, letterSpacing: 2, color: AppColors.accentGreen, fontFamily: 'monospace')),
-                const SizedBox(height: 14),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.accentGreen, foregroundColor: Colors.white),
-                      onPressed: _isReadingTimerActive ? _pauseReadingTimer : _startReadingTimer,
-                      icon: Icon(_isReadingTimerActive ? Icons.pause_rounded : Icons.play_arrow_rounded),
-                      label: Text(_isReadingTimerActive ? 'Pause' : 'Start Reading', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded, color: AppColors.accentRose, size: 18),
+                      onPressed: () async {
+                        await DBHelper.instance.deleteStudyLog(id);
+                        await _loadStudyLogs();
+                      },
                     ),
-                    const SizedBox(width: 10),
-                    OutlinedButton.icon(onPressed: () => _resetReadingTimer(_selectedReadingMinutes), icon: const Icon(Icons.refresh_rounded, size: 16), label: const Text('Reset')),
                   ],
                 ),
-              ],
-            ),
-          ),
+              );
+            }),
           const SizedBox(height: 40),
         ],
       ),

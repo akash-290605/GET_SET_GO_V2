@@ -449,6 +449,8 @@ class StandardNutritionDatabase {
     return [..._customFoods, ..._builtInFoods];
   }
 
+  static List<StandardFoodEntry> get allFoods => getAllFoods();
+
   static List<String> getCategories() {
     return [
       'All',

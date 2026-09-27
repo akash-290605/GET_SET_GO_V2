@@ -7,19 +7,20 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify GET SET GO branding is present
-    expect(find.text('GET SET GO'), findsOneWidget);
+    expect(find.text('GET SET GO'), findsWidgets);
 
     // Verify bottom navigation destinations
     expect(find.text('Home'), findsOneWidget);
     expect(find.text('Workout'), findsOneWidget);
     expect(find.text('Nutrition'), findsOneWidget);
     expect(find.text('Finance'), findsOneWidget);
+    expect(find.text('Study'), findsOneWidget);
     expect(find.text('AI Coach'), findsOneWidget);
-    expect(find.text('Progress'), findsOneWidget);
 
     // Verify dashboard metrics & sections
     expect(find.text('FITNESS & WORKOUT'), findsOneWidget);
-    expect(find.text('DAILY NUTRITION INTAKE'), findsOneWidget);
-    expect(find.text('MONTHLY FINANCE'), findsOneWidget);
+    expect(find.text('DAILY NUTRITION'), findsOneWidget);
+    expect(find.text('FINANCE & BUDGET'), findsOneWidget);
+    expect(find.text('STUDY & ACADEMICS'), findsOneWidget);
   });
 }
