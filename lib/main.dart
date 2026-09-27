@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:timezone/data/latest.dart' as tz;
+import 'firebase_options.dart';
 import 'notification_service.dart';
 import 'services/auth_service.dart';
 import 'services/gemini_service.dart';
@@ -29,6 +31,13 @@ void main() async {
   try {
     tz.initializeTimeZones();
   } catch (_) {}
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    debugPrint('Firebase init: $e');
+  }
   try {
     await AuthService.instance.init();
   } catch (_) {}

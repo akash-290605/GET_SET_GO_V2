@@ -22,11 +22,10 @@ class AppColors {
 
   // Light Mode Color System
   static const Color lightBackground = Color(0xFFF5F9FF);
-  static const Color lightSecondaryBackground = Color(0xFFEEF6FF);
   static const Color lightSurface = Color(0xFFFFFFFF);
-  static const Color lightSurfaceElevated = Color(0xFFEEF6FF);
-  static const Color lightSurfaceHighlight = Color(0xFFE2E8F0);
-  static const Color lightBorder = Color(0x2464748B); // rgba(100,116,139,0.14)
+  static const Color lightSurfaceElevated = Color(0xFFF8FAFC);
+  static const Color lightSurfaceHighlight = Color(0xFFEEF2F6);
+  static const Color lightBorder = Color(0x2664748B); // rgba(100,116,139,0.15)
   static const Color lightTextPrimary = Color(0xFF172033);
   static const Color lightTextSecondary = Color(0xFF64748B);
   static const Color lightTextMuted = Color(0xFF94A3B8);
@@ -57,8 +56,8 @@ class AppColors {
   static Color getSurface(bool isDark) => isDark ? darkSurface : lightSurface;
   static Color getSurfaceElevated(bool isDark) => isDark ? darkSurfaceElevated : lightSurfaceElevated;
   static Color cardBackground(bool isDark) => isDark 
-      ? const Color(0xFF11182B).withValues(alpha: 0.85) 
-      : Colors.white.withValues(alpha: 0.78);
+      ? const Color(0xFF11182B).withValues(alpha: 0.82) 
+      : Colors.white.withValues(alpha: 0.88);
   static Color cardBorder(bool isDark) => isDark ? darkBorder : lightBorder;
   static Color textPrimary(bool isDark) => isDark ? darkTextPrimary : lightTextPrimary;
   static Color textSecondary(bool isDark) => isDark ? darkTextSecondary : lightTextSecondary;

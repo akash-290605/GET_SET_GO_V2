@@ -47,12 +47,12 @@ class _GlassCardState extends State<GlassCard> {
     final defaultBgColor = widget.color ??
         (isDark
             ? const Color(0xFF11182B).withValues(alpha: 0.85)
-            : Colors.white.withValues(alpha: 0.78));
+            : Colors.white.withValues(alpha: 0.90));
 
     final defaultBorderColor = widget.borderColor ??
         (isDark
             ? Colors.white.withValues(alpha: _isHovered ? 0.20 : 0.09)
-            : const Color(0xFF64748B).withValues(alpha: _isHovered ? 0.24 : 0.14));
+            : const Color(0xFF64748B).withValues(alpha: _isHovered ? 0.25 : 0.12));
 
     final effectiveBorder = widget.border ??
         Border.all(
@@ -62,7 +62,7 @@ class _GlassCardState extends State<GlassCard> {
 
     final shadowColor = isDark
         ? Colors.black.withValues(alpha: _isHovered ? 0.40 : 0.25)
-        : const Color(0xFF1E40AF).withValues(alpha: _isHovered ? 0.12 : 0.07);
+        : const Color(0xFF1E40AF).withValues(alpha: _isHovered ? 0.12 : 0.05);
 
     final translateY = (widget.enableHover && _isHovered) ? -3.0 : 0.0;
 

@@ -3,11 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../db_helper.dart';
 import '../models/food_models.dart';
-import '../services/auth_service.dart';
 import '../services/gemini_service.dart';
 import '../services/profile_service.dart';
 import '../services/theme_service.dart';
-import '../widgets/account_cloud_modal.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -641,57 +639,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: const Text('Copy full JSON backup to clipboard', style: TextStyle(fontSize: 12)),
                   trailing: const Icon(Icons.copy_rounded),
                   onTap: _exportDataDialog,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Account & Authentication Section
-          _buildSectionHeader('Account & Security'),
-          Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.account_circle_outlined, color: AppColors.primary),
-                  title: Text(AuthService.instance.currentUser?.displayName ?? 'Active Account', style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text(AuthService.instance.currentUser?.email ?? 'Logged In with Secure Session', style: const TextStyle(fontSize: 12)),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () => showAccountCloudModal(context),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.logout_rounded, color: AppColors.accentRose),
-                  title: const Text('Sign Out', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.accentRose)),
-                  subtitle: const Text('Return to login screen & protect session data', style: TextStyle(fontSize: 12)),
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        backgroundColor: Theme.of(context).cardColor,
-                        title: const Text('Sign Out of GET SET GO?', style: TextStyle(fontWeight: FontWeight.bold)),
-                        content: const Text('You will need to sign in again to access your dashboard and fitness records.'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: const Text('Cancel'),
-                          ),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.accentRose,
-                              foregroundColor: Colors.white,
-                            ),
-                            onPressed: () async {
-                              Navigator.pop(ctx);
-                              await AuthService.instance.signOut();
-                            },
-                            child: const Text('Sign Out'),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
                 ),
               ],
             ),
