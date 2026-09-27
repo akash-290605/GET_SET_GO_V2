@@ -10,6 +10,7 @@ import 'expense_screen.dart';
 import 'ai_coach_screen.dart';
 import 'study_screen.dart';
 import 'discipline_goals_screen.dart';
+import 'vitals_activity_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final Function(int)? onNavigateTab;
@@ -620,54 +621,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const Divider(height: 20),
 
           // Steps Telemetry Gauge
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.directions_walk_rounded, color: AppColors.accentAmber, size: 16),
-                  const SizedBox(width: 6),
-                  Text('${profile.todaySteps} / ${profile.dailyStepTarget} Steps', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                ],
-              ),
-              Row(
-                children: [
-                  InkWell(
-                    onTap: () => profile.logSteps(500),
-                    borderRadius: BorderRadius.circular(6),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: AppColors.accentAmber.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
-                      child: const Text('+500', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.accentAmber)),
+          InkWell(
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyActivityAndVitalsScreen(initialTabIndex: 0))),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.directions_walk_rounded, color: AppColors.accentAmber, size: 16),
+                    const SizedBox(width: 6),
+                    Text('${profile.todaySteps} / ${profile.dailyStepTarget} Steps', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                Row(
+                  children: [
+                    InkWell(
+                      onTap: () => profile.logSteps(500),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: AppColors.accentAmber.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                        child: const Text('+500', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.accentAmber)),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                  InkWell(
-                    onTap: () => profile.logSteps(1000),
-                    borderRadius: BorderRadius.circular(6),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: AppColors.accentAmber.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
-                      child: const Text('+1k', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.accentAmber)),
+                    const SizedBox(width: 4),
+                    InkWell(
+                      onTap: () => profile.logSteps(1000),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: AppColors.accentAmber.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                        child: const Text('+1k', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.accentAmber)),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                  InkWell(
-                    onTap: () => _showCustomNumberInputDialog(
-                      context,
-                      title: 'Set Today Steps',
-                      initialVal: profile.todaySteps.toString(),
-                      onSaved: (val) {
-                        final v = int.tryParse(val);
-                        if (v != null) profile.setSteps(v);
-                      },
-                    ),
-                    borderRadius: BorderRadius.circular(6),
-                    child: const Icon(Icons.edit_outlined, size: 14, color: AppColors.textMuted),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: 4),
+                    const Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textMuted),
+                  ],
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 6),
           ClipRRect(
@@ -682,54 +674,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 14),
 
           // Active Minutes Telemetry Gauge
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.timer_outlined, color: AppColors.accentBlue, size: 16),
-                  const SizedBox(width: 6),
-                  Text('${profile.todayActiveTimeMinutes} / ${profile.dailyActiveTimeMinutesTarget} Active Mins', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                ],
-              ),
-              Row(
-                children: [
-                  InkWell(
-                    onTap: () => profile.logActiveMinutes(15),
-                    borderRadius: BorderRadius.circular(6),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: AppColors.accentBlue.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
-                      child: const Text('+15m', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.accentBlue)),
+          InkWell(
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyActivityAndVitalsScreen(initialTabIndex: 1))),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.timer_outlined, color: AppColors.accentBlue, size: 16),
+                    const SizedBox(width: 6),
+                    Text('${profile.todayActiveTimeMinutes} / ${profile.dailyActiveTimeMinutesTarget} Active Mins', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                Row(
+                  children: [
+                    InkWell(
+                      onTap: () => profile.logActiveMinutes(15),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: AppColors.accentBlue.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                        child: const Text('+15m', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.accentBlue)),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                  InkWell(
-                    onTap: () => profile.logActiveMinutes(30),
-                    borderRadius: BorderRadius.circular(6),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: AppColors.accentBlue.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
-                      child: const Text('+30m', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.accentBlue)),
+                    const SizedBox(width: 4),
+                    InkWell(
+                      onTap: () => profile.logActiveMinutes(30),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: AppColors.accentBlue.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                        child: const Text('+30m', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.accentBlue)),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                  InkWell(
-                    onTap: () => _showCustomNumberInputDialog(
-                      context,
-                      title: 'Set Active Minutes',
-                      initialVal: profile.todayActiveTimeMinutes.toString(),
-                      onSaved: (val) {
-                        final v = int.tryParse(val);
-                        if (v != null) profile.setActiveMinutes(v);
-                      },
-                    ),
-                    borderRadius: BorderRadius.circular(6),
-                    child: const Icon(Icons.edit_outlined, size: 14, color: AppColors.textMuted),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: 4),
+                    const Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textMuted),
+                  ],
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 6),
           ClipRRect(
@@ -741,19 +724,92 @@ class _DashboardScreenState extends State<DashboardScreen> {
               valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accentBlue),
             ),
           ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                side: BorderSide(color: AppColors.primaryGlow.withValues(alpha: 0.3)),
-              ),
-              icon: const Icon(Icons.track_changes_rounded, size: 16, color: AppColors.primaryGlow),
-              label: const Text('Manage Strict Goals & Apology Archive', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryGlow)),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DisciplineGoalsScreen())),
+          const SizedBox(height: 14),
+
+          // Water Intake Telemetry Gauge
+          InkWell(
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyActivityAndVitalsScreen(initialTabIndex: 2))),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.water_drop_outlined, color: AppColors.accentGreen, size: 16),
+                    const SizedBox(width: 6),
+                    Text('${(profile.todayWaterIntakeMl / 1000).toStringAsFixed(2)} / ${(profile.dailyWaterIntakeMlTarget / 1000).toStringAsFixed(1)} L Water', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                Row(
+                  children: [
+                    InkWell(
+                      onTap: () => profile.logWater(250),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: AppColors.accentGreen.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                        child: const Text('+250ml', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.accentGreen)),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    InkWell(
+                      onTap: () => profile.logWater(500),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: AppColors.accentGreen.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                        child: const Text('+500ml', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.accentGreen)),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textMuted),
+                  ],
+                ),
+              ],
             ),
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: (profile.dailyWaterIntakeMlTarget > 0 ? profile.todayWaterIntakeMl / profile.dailyWaterIntakeMlTarget : 0.0).clamp(0.0, 1.0),
+              minHeight: 5,
+              backgroundColor: theme.dividerColor.withValues(alpha: 0.1),
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accentGreen),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Action Buttons Row
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accentAmber.withValues(alpha: 0.2),
+                    foregroundColor: AppColors.accentAmber,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: AppColors.accentAmber.withValues(alpha: 0.4))),
+                  ),
+                  icon: const Icon(Icons.analytics_rounded, size: 16),
+                  label: const Text('Vitals & Graphs Hub', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyActivityAndVitalsScreen())),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    side: BorderSide(color: AppColors.primaryGlow.withValues(alpha: 0.3)),
+                  ),
+                  icon: const Icon(Icons.track_changes_rounded, size: 16, color: AppColors.primaryGlow),
+                  label: const Text('Strict Goals', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppColors.primaryGlow), overflow: TextOverflow.ellipsis),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DisciplineGoalsScreen())),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -877,39 +933,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           },
         );
       },
-    );
-  }
-
-  void _showCustomNumberInputDialog(
-    BuildContext context, {
-    required String title,
-    required String initialVal,
-    required Function(String) onSaved,
-  }) {
-    final ctrl = TextEditingController(text: initialVal);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Theme.of(context).cardColor,
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(border: OutlineInputBorder()),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-            onPressed: () {
-              onSaved(ctrl.text.trim());
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('Update'),
-          ),
-        ],
-      ),
     );
   }
 

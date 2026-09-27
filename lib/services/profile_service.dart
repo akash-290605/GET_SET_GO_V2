@@ -32,8 +32,15 @@ class ProfileService extends ChangeNotifier {
   bool isStrictMode = true;
   int dailyStepTarget = 10000;
   int dailyActiveTimeMinutesTarget = 60;
+  int dailyWaterIntakeMlTarget = 3000;
   int todaySteps = 7420;
   int todayActiveTimeMinutes = 45;
+  int todayWaterIntakeMl = 2250;
+
+  // 7-Day Telemetry History for Graph Visualizations (Mon - Sun)
+  List<int> weeklySteps = [8450, 10200, 7800, 9600, 11400, 8900, 7420];
+  List<int> weeklyActiveMinutes = [50, 65, 40, 70, 80, 55, 45];
+  List<int> weeklyWaterMl = [2750, 3200, 2500, 3000, 3500, 2800, 2250];
 
   // Daily Nutrition Targets
   DailyNutritionTarget nutritionTarget = DailyNutritionTarget(
@@ -71,8 +78,20 @@ class ProfileService extends ChangeNotifier {
         isStrictMode = map['isStrictMode'] ?? isStrictMode;
         dailyStepTarget = (map['dailyStepTarget'] as num?)?.toInt() ?? dailyStepTarget;
         dailyActiveTimeMinutesTarget = (map['dailyActiveTimeMinutesTarget'] as num?)?.toInt() ?? dailyActiveTimeMinutesTarget;
+        dailyWaterIntakeMlTarget = (map['dailyWaterIntakeMlTarget'] as num?)?.toInt() ?? dailyWaterIntakeMlTarget;
         todaySteps = (map['todaySteps'] as num?)?.toInt() ?? todaySteps;
         todayActiveTimeMinutes = (map['todayActiveTimeMinutes'] as num?)?.toInt() ?? todayActiveTimeMinutes;
+        todayWaterIntakeMl = (map['todayWaterIntakeMl'] as num?)?.toInt() ?? todayWaterIntakeMl;
+
+        if (map['weeklySteps'] != null) {
+          weeklySteps = List<int>.from(map['weeklySteps']);
+        }
+        if (map['weeklyActiveMinutes'] != null) {
+          weeklyActiveMinutes = List<int>.from(map['weeklyActiveMinutes']);
+        }
+        if (map['weeklyWaterMl'] != null) {
+          weeklyWaterMl = List<int>.from(map['weeklyWaterMl']);
+        }
       }
 
       final targetStr = prefs.getString(_nutritionTargetKey);
@@ -168,12 +187,14 @@ class ProfileService extends ChangeNotifier {
     bool? isStrictMode,
     int? dailyStepTarget,
     int? dailyActiveTimeMinutesTarget,
+    int? dailyWaterIntakeMlTarget,
     double? targetWeightKg,
   }) async {
     if (strictGoalTitle != null) this.strictGoalTitle = strictGoalTitle;
     if (isStrictMode != null) this.isStrictMode = isStrictMode;
     if (dailyStepTarget != null) this.dailyStepTarget = dailyStepTarget;
     if (dailyActiveTimeMinutesTarget != null) this.dailyActiveTimeMinutesTarget = dailyActiveTimeMinutesTarget;
+    if (dailyWaterIntakeMlTarget != null) this.dailyWaterIntakeMlTarget = dailyWaterIntakeMlTarget;
     if (targetWeightKg != null) this.targetWeightKg = targetWeightKg;
 
     await _saveProfile();
@@ -182,24 +203,48 @@ class ProfileService extends ChangeNotifier {
 
   Future<void> logSteps(int delta) async {
     todaySteps = (todaySteps + delta).clamp(0, 100000);
+    if (weeklySteps.isNotEmpty) weeklySteps[weeklySteps.length - 1] = todaySteps;
     await _saveProfile();
     notifyListeners();
   }
 
   Future<void> setSteps(int steps) async {
     todaySteps = steps.clamp(0, 100000);
+    if (weeklySteps.isNotEmpty) weeklySteps[weeklySteps.length - 1] = todaySteps;
     await _saveProfile();
     notifyListeners();
   }
 
   Future<void> logActiveMinutes(int delta) async {
     todayActiveTimeMinutes = (todayActiveTimeMinutes + delta).clamp(0, 1440);
+    if (weeklyActiveMinutes.isNotEmpty) weeklyActiveMinutes[weeklyActiveMinutes.length - 1] = todayActiveTimeMinutes;
     await _saveProfile();
     notifyListeners();
   }
 
   Future<void> setActiveMinutes(int minutes) async {
     todayActiveTimeMinutes = minutes.clamp(0, 1440);
+    if (weeklyActiveMinutes.isNotEmpty) weeklyActiveMinutes[weeklyActiveMinutes.length - 1] = todayActiveTimeMinutes;
+    await _saveProfile();
+    notifyListeners();
+  }
+
+  Future<void> logWater(int deltaMl) async {
+    todayWaterIntakeMl = (todayWaterIntakeMl + deltaMl).clamp(0, 10000);
+    if (weeklyWaterMl.isNotEmpty) weeklyWaterMl[weeklyWaterMl.length - 1] = todayWaterIntakeMl;
+    await _saveProfile();
+    notifyListeners();
+  }
+
+  Future<void> setWater(int ml) async {
+    todayWaterIntakeMl = ml.clamp(0, 10000);
+    if (weeklyWaterMl.isNotEmpty) weeklyWaterMl[weeklyWaterMl.length - 1] = todayWaterIntakeMl;
+    await _saveProfile();
+    notifyListeners();
+  }
+
+  Future<void> updateWaterTarget(int targetMl) async {
+    dailyWaterIntakeMlTarget = targetMl.clamp(500, 10000);
     await _saveProfile();
     notifyListeners();
   }
@@ -223,8 +268,13 @@ class ProfileService extends ChangeNotifier {
         'isStrictMode': isStrictMode,
         'dailyStepTarget': dailyStepTarget,
         'dailyActiveTimeMinutesTarget': dailyActiveTimeMinutesTarget,
+        'dailyWaterIntakeMlTarget': dailyWaterIntakeMlTarget,
         'todaySteps': todaySteps,
         'todayActiveTimeMinutes': todayActiveTimeMinutes,
+        'todayWaterIntakeMl': todayWaterIntakeMl,
+        'weeklySteps': weeklySteps,
+        'weeklyActiveMinutes': weeklyActiveMinutes,
+        'weeklyWaterMl': weeklyWaterMl,
       };
       await prefs.setString(_profileKey, json.encode(map));
     } catch (e) {

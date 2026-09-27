@@ -16,6 +16,7 @@ import 'screens/progress_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/study_screen.dart';
 import 'screens/discipline_goals_screen.dart';
+import 'screens/vitals_activity_screen.dart';
 import 'widgets/account_cloud_modal.dart';
 
 void main() async {
@@ -296,6 +297,14 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     child: Text('MORE TOOLS & ARCHIVES', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: theme.hintColor, letterSpacing: 1.1)),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.directions_walk_rounded, color: AppColors.accentAmber),
+                    title: const Text('Steps, Active Hrs & Water Hub', style: TextStyle(fontSize: 14)),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyActivityAndVitalsScreen()));
+                    },
                   ),
                   ListTile(
                     leading: const Icon(Icons.track_changes_rounded, color: AppColors.accentRose),
