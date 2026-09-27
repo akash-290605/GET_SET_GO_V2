@@ -1,8 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:timezone/data/latest.dart' as tz;
-import 'firebase_options.dart';
 import 'notification_service.dart';
 import 'services/auth_service.dart';
 import 'services/gemini_service.dart';
@@ -21,7 +19,6 @@ import 'screens/study_screen.dart';
 import 'screens/english_learning_screen.dart';
 import 'screens/discipline_goals_screen.dart';
 import 'screens/vitals_activity_screen.dart';
-import 'screens/login_screen.dart';
 import 'widgets/account_cloud_modal.dart';
 import 'widgets/global_search_dialog.dart';
 import 'widgets/live_animated_background.dart';
@@ -31,13 +28,6 @@ void main() async {
   try {
     tz.initializeTimeZones();
   } catch (_) {}
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-  } catch (e) {
-    debugPrint('Firebase init: $e');
-  }
   try {
     await AuthService.instance.init();
   } catch (_) {}
@@ -79,96 +69,9 @@ class GetSetGoApp extends StatelessWidget {
           theme: ThemeService.instance.lightTheme,
           darkTheme: ThemeService.instance.darkTheme,
           themeMode: ThemeService.instance.flutterThemeMode,
-          home: const AuthGate(),
+          home: const MainNavigationShell(),
         );
       },
-    );
-  }
-}
-
-class AuthGate extends StatelessWidget {
-  const AuthGate({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: AuthService.instance,
-      builder: (context, _) {
-        final auth = AuthService.instance;
-        if (auth.isInitializing) {
-          return const AuthLoadingScreen();
-        }
-        if (auth.isAuthenticated) {
-          return const MainNavigationShell();
-        }
-        return const LoginScreen();
-      },
-    );
-  }
-}
-
-class AuthLoadingScreen extends StatelessWidget {
-  const AuthLoadingScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = ThemeService.instance.isDarkMode(context);
-
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: LiveAnimatedBackground(
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppColors.primary, AppColors.purple],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.35),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.bolt_rounded, size: 36, color: Colors.white),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'GET SET GO',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.5,
-                  color: AppColors.textPrimary(isDark),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.primary),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Checking authentication...',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  color: AppColors.textSecondary(isDark),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

@@ -116,12 +116,6 @@ class ProfileService extends ChangeNotifier {
     }
   }
 
-  Future<void> updateName(String newName) async {
-    name = newName;
-    await _saveProfile();
-    notifyListeners();
-  }
-
   Future<void> updateProfile({
     String? name,
     int? age,

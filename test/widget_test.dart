@@ -1,34 +1,26 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_application_1/main.dart';
-import 'package:flutter_application_1/services/auth_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  setUp(() async {
-    SharedPreferences.setMockInitialValues({});
-  });
-
-  testWidgets('App presents LoginScreen when unauthenticated and MainNavigationShell upon authentication', (WidgetTester tester) async {
-    // 1. Launch App in unauthenticated state
-    await AuthService.instance.signOut();
+  testWidgets('App renders branding header, dashboard metrics, and bottom navigation correctly', (WidgetTester tester) async {
     await tester.pumpWidget(const GetSetGoApp());
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 200));
 
-    // Verify LoginScreen branding and action triggers
+    // Verify GET SET GO branding is present
     expect(find.text('GET SET GO'), findsWidgets);
-    expect(find.text('Continue with Google'), findsOneWidget);
-    expect(find.text('Sign In'), findsWidgets);
 
-    // 2. Authenticate user
-    await AuthService.instance.signInWithGoogle();
-    await tester.pump(const Duration(milliseconds: 300));
-
-    // Verify MainNavigationShell is rendered with all primary destinations
+    // Verify bottom navigation destinations
     expect(find.text('Home'), findsOneWidget);
     expect(find.text('Workout'), findsOneWidget);
     expect(find.text('Nutrition'), findsOneWidget);
     expect(find.text('Vitals'), findsOneWidget);
     expect(find.text('Goals'), findsOneWidget);
     expect(find.text('AI Coach'), findsOneWidget);
+
+    // Verify dashboard metrics & sections
+    expect(find.text('FITNESS & WORKOUT'), findsOneWidget);
+    expect(find.text('DAILY NUTRITION'), findsOneWidget);
+    expect(find.text('FINANCE & BUDGET'), findsOneWidget);
+    expect(find.text('STUDY & ACADEMICS'), findsOneWidget);
   });
 }
