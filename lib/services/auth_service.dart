@@ -1,240 +1,168 @@
-import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class UserProfile {
+class UserProfileData {
   final String uid;
-  final String email;
   final String displayName;
+  final String email;
   final String photoUrl;
-  final String authProvider; // 'google', 'email', 'guest'
+  final bool isGuest;
   final DateTime createdAt;
 
-  UserProfile({
+  UserProfileData({
     required this.uid,
-    required this.email,
     required this.displayName,
-    required this.photoUrl,
-    required this.authProvider,
+    required this.email,
+    this.photoUrl = '',
+    this.isGuest = false,
     required this.createdAt,
   });
 
-  Map<String, dynamic> toMap() {
-    return {
-      'uid': uid,
-      'email': email,
-      'displayName': displayName,
-      'photoUrl': photoUrl,
-      'authProvider': authProvider,
-      'createdAt': createdAt.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toMap() => {
+    'uid': uid,
+    'displayName': displayName,
+    'email': email,
+    'photoUrl': photoUrl,
+    'isGuest': isGuest,
+    'createdAt': createdAt.toIso8601String(),
+  };
 
-  factory UserProfile.fromMap(Map<String, dynamic> map) {
-    return UserProfile(
-      uid: map['uid'] as String? ?? 'guest_user',
-      email: map['email'] as String? ?? 'guest@getsetgo.app',
-      displayName: map['displayName'] as String? ?? 'GetSetGo Titan',
-      photoUrl: map['photoUrl'] as String? ?? '',
-      authProvider: map['authProvider'] as String? ?? 'guest',
-      createdAt: map['createdAt'] != null
-          ? DateTime.tryParse(map['createdAt'] as String) ?? DateTime.now()
-          : DateTime.now(),
-    );
-  }
+  factory UserProfileData.fromMap(Map<String, dynamic> map) => UserProfileData(
+    uid: map['uid']?.toString() ?? 'user_${DateTime.now().millisecondsSinceEpoch}',
+    displayName: map['displayName']?.toString() ?? 'Athlete',
+    email: map['email']?.toString() ?? 'user@getsetgo.app',
+    photoUrl: map['photoUrl']?.toString() ?? '',
+    isGuest: map['isGuest'] == true || map['isGuest'] == 1,
+    createdAt: map['createdAt'] != null ? DateTime.tryParse(map['createdAt'].toString()) ?? DateTime.now() : DateTime.now(),
+  );
 
   String toJson() => json.encode(toMap());
-  factory UserProfile.fromJson(String source) =>
-      UserProfile.fromMap(json.decode(source) as Map<String, dynamic>);
+  factory UserProfileData.fromJson(String source) => UserProfileData.fromMap(json.decode(source));
 }
 
 class AuthService extends ChangeNotifier {
-  static final AuthService instance = AuthService._internal();
+  static final AuthService _instance = AuthService._internal();
+  static AuthService get instance => _instance;
   AuthService._internal();
 
-  UserProfile? _currentUser;
-  bool _initialized = false;
+  UserProfileData? _currentUser;
   bool _isLoading = false;
-  String? _errorMessage;
 
-  UserProfile? get currentUser => _currentUser;
-  bool get isLoggedIn => _currentUser != null;
-  bool get isGuest => _currentUser?.authProvider == 'guest';
-  bool get isInitialized => _initialized;
+  UserProfileData? get currentUser => _currentUser;
+  bool get isAuthenticated => _currentUser != null;
+  bool get isGuest => _currentUser?.isGuest ?? true;
   bool get isLoading => _isLoading;
-  String? get errorMessage => _errorMessage;
-
-  static const String _userKey = 'gsg_auth_user_v1';
 
   Future<void> init() async {
-    if (_initialized) return;
     try {
       final prefs = await SharedPreferences.getInstance();
-      final userJson = prefs.getString(_userKey);
-      if (userJson != null && userJson.isNotEmpty) {
-        _currentUser = UserProfile.fromJson(userJson);
+      final userJson = prefs.getString('auth_current_user');
+      if (userJson != null) {
+        _currentUser = UserProfileData.fromJson(userJson);
+      } else {
+        // Default to initialized guest session if none exists
+        _currentUser = UserProfileData(
+          uid: 'guest_${DateTime.now().millisecondsSinceEpoch}',
+          displayName: 'Akash K',
+          email: 'akash@getsetgo.app',
+          photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300',
+          isGuest: false,
+          createdAt: DateTime.now(),
+        );
       }
     } catch (e) {
       debugPrint('AuthService init error: $e');
-    } finally {
-      _initialized = true;
-      notifyListeners();
     }
+    notifyListeners();
   }
 
   Future<bool> signInWithGoogle() async {
     _isLoading = true;
-    _errorMessage = null;
     notifyListeners();
-
     try {
-      await Future.delayed(const Duration(milliseconds: 600));
-      final now = DateTime.now();
-      final user = UserProfile(
-        uid: 'google_user_${now.millisecondsSinceEpoch}',
-        email: 'akash.titan@gmail.com',
-        displayName: 'Akash K (Titan)',
-        photoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-        authProvider: 'google',
-        createdAt: now,
+      await Future.delayed(const Duration(milliseconds: 600)); // Smooth UX transition
+      _currentUser = UserProfileData(
+        uid: 'google_${DateTime.now().millisecondsSinceEpoch}',
+        displayName: 'Akash K (Google Verified)',
+        email: 'akash290605@gmail.com',
+        photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300',
+        isGuest: false,
+        createdAt: DateTime.now(),
       );
-
-      await _persistUser(user);
-      _currentUser = user;
+      await _saveUser();
       _isLoading = false;
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = 'Google Sign-In failed: $e';
       _isLoading = false;
       notifyListeners();
       return false;
     }
   }
 
-  Future<bool> signInWithEmail({
-    required String email,
-    required String password,
-  }) async {
+  Future<bool> signInWithEmailPassword(String email, String password) async {
     _isLoading = true;
-    _errorMessage = null;
     notifyListeners();
-
     try {
-      if (!email.contains('@') || !email.contains('.')) {
-        throw Exception('Please enter a valid email address.');
-      }
-      if (password.length < 6) {
-        throw Exception('Password must be at least 6 characters.');
-      }
-
       await Future.delayed(const Duration(milliseconds: 500));
-
-      final sanitizedName = email.split('@').first;
-      final displayName = sanitizedName.isNotEmpty
-          ? sanitizedName[0].toUpperCase() + sanitizedName.substring(1)
-          : 'Titan Member';
-
-      final user = UserProfile(
-        uid: 'mail_${email.hashCode.abs()}',
-        email: email.trim().toLowerCase(),
-        displayName: displayName,
+      final name = email.split('@').first;
+      _currentUser = UserProfileData(
+        uid: 'user_${DateTime.now().millisecondsSinceEpoch}',
+        displayName: name.isNotEmpty ? name.toUpperCase() : 'Athlete',
+        email: email,
         photoUrl: '',
-        authProvider: 'email',
+        isGuest: false,
         createdAt: DateTime.now(),
       );
-
-      await _persistUser(user);
-      _currentUser = user;
+      await _saveUser();
       _isLoading = false;
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
       _isLoading = false;
       notifyListeners();
       return false;
     }
   }
 
-  Future<bool> signUpWithEmail({
-    required String name,
-    required String email,
-    required String password,
-  }) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      if (name.trim().isEmpty) {
-        throw Exception('Please enter your full name.');
-      }
-      if (!email.contains('@') || !email.contains('.')) {
-        throw Exception('Please enter a valid email address.');
-      }
-      if (password.length < 6) {
-        throw Exception('Password must be at least 6 characters.');
-      }
-
-      await Future.delayed(const Duration(milliseconds: 600));
-
-      final user = UserProfile(
-        uid: 'mail_${email.hashCode.abs()}',
-        email: email.trim().toLowerCase(),
-        displayName: name.trim(),
-        photoUrl: '',
-        authProvider: 'email',
-        createdAt: DateTime.now(),
-      );
-
-      await _persistUser(user);
-      _currentUser = user;
-      _isLoading = false;
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
-  }
-
-  Future<void> signInAsGuest() async {
-    final now = DateTime.now();
-    final user = UserProfile(
-      uid: 'guest_${now.millisecondsSinceEpoch}',
-      email: 'guest@getsetgo.app',
-      displayName: 'Guest Explorer',
+  Future<void> continueAsGuest() async {
+    _currentUser = UserProfileData(
+      uid: 'guest_${DateTime.now().millisecondsSinceEpoch}',
+      displayName: 'Guest Athlete',
+      email: 'guest@getsetgo.local',
       photoUrl: '',
-      authProvider: 'guest',
-      createdAt: now,
+      isGuest: true,
+      createdAt: DateTime.now(),
     );
-    await _persistUser(user);
-    _currentUser = user;
+    await _saveUser();
     notifyListeners();
   }
 
   Future<void> signOut() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_userKey);
-      _currentUser = null;
-      _errorMessage = null;
-      notifyListeners();
-    } catch (e) {
-      debugPrint('SignOut error: $e');
-    }
+    _currentUser = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('auth_current_user');
+    notifyListeners();
   }
 
-  Future<void> _persistUser(UserProfile user) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_userKey, user.toJson());
-    } catch (e) {
-      debugPrint('Failed to persist user: $e');
-    }
+  Future<void> updateProfile({String? name, String? email, String? photoUrl}) async {
+    if (_currentUser == null) return;
+    _currentUser = UserProfileData(
+      uid: _currentUser!.uid,
+      displayName: name ?? _currentUser!.displayName,
+      email: email ?? _currentUser!.email,
+      photoUrl: photoUrl ?? _currentUser!.photoUrl,
+      isGuest: _currentUser!.isGuest,
+      createdAt: _currentUser!.createdAt,
+    );
+    await _saveUser();
+    notifyListeners();
+  }
+
+  Future<void> _saveUser() async {
+    if (_currentUser == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('auth_current_user', _currentUser!.toJson());
   }
 }

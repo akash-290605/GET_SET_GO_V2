@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/auth_service.dart';
 import '../services/cloud_sync_service.dart';
-import '../main.dart';
+import '../services/theme_service.dart';
 
 class AccountCloudModal extends StatefulWidget {
   const AccountCloudModal({super.key});
@@ -20,355 +21,356 @@ class AccountCloudModal extends StatefulWidget {
 }
 
 class _AccountCloudModalState extends State<AccountCloudModal> {
-  bool _isBackingUp = false;
-  String? _backupMessage;
+  final TextEditingController _importController = TextEditingController();
+  bool _isImportMode = false;
+
+  @override
+  void dispose() {
+    _importController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final user = AuthService.instance.currentUser;
-    final isGuest = AuthService.instance.isGuest || user == null;
+    final isGuest = AuthService.instance.isGuest;
     final syncService = CloudSyncService.instance;
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.75,
-      minChildSize: 0.45,
-      maxChildSize: 0.95,
-      builder: (context, scrollController) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-            border: Border(
-              top: BorderSide(color: AppColors.borderLight, width: 1.5),
-              left: BorderSide(color: AppColors.borderLight, width: 1),
-              right: BorderSide(color: AppColors.borderLight, width: 1),
-            ),
-          ),
-          child: ListenableBuilder(
-            listenable: Listenable.merge([AuthService.instance, CloudSyncService.instance]),
-            builder: (context, _) {
-              return ListView(
+    return AnimatedBuilder(
+      animation: Listenable.merge([AuthService.instance, syncService]),
+      builder: (context, _) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.8,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF161B22) : Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                border: Border(
+                  top: BorderSide(
+                    color: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0),
+                    width: 1.5,
+                  ),
+                ),
+              ),
+              child: ListView(
                 controller: scrollController,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                 children: [
+                  // Handle
                   Center(
                     child: Container(
                       width: 44,
-                      height: 4,
+                      height: 5,
                       decoration: BoxDecoration(
-                        color: Colors.white24,
-                        borderRadius: BorderRadius.circular(2),
+                        color: Colors.grey.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                   ),
                   const SizedBox(height: 18),
 
-                  // Header with Title
+                  // Header
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [AppColors.primary, AppColors.secondary],
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: ThemeService.primaryCyan.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.cloud_sync_rounded,
+                          color: ThemeService.primaryCyan,
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Cloud Sync & Vault',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: -0.3,
                               ),
-                              borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Icon(Icons.cloud_sync_rounded, color: Colors.white, size: 20),
-                          ),
-                          const SizedBox(width: 10),
-                          const Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'ACCOUNT & CLOUD VAULT',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1.4,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              Text(
-                                'Firebase Firestore + Local Storage',
-                                style: TextStyle(fontSize: 11, color: AppColors.textMuted),
-                              ),
-                            ],
-                          ),
-                        ],
+                            Text(
+                              'Firebase: ${syncService.firebaseProjectId}',
+                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                          ],
+                        ),
                       ),
                       IconButton(
+                        icon: const Icon(Icons.close),
                         onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 24),
 
                   // User Profile Card
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceElevated,
+                      color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: AppColors.borderLight),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0),
+                      ),
                     ),
                     child: Row(
                       children: [
                         CircleAvatar(
                           radius: 26,
-                          backgroundColor: isGuest ? AppColors.accentAmber : AppColors.primary,
-                          child: Icon(
-                            isGuest ? Icons.person_outline_rounded : Icons.person_rounded,
-                            size: 28,
-                            color: Colors.white,
-                          ),
+                          backgroundColor: ThemeService.primaryCyan.withValues(alpha: 0.2),
+                          backgroundImage: user?.photoUrl.isNotEmpty == true ? NetworkImage(user!.photoUrl) : null,
+                          child: user?.photoUrl.isEmpty == true ? const Icon(Icons.person, color: ThemeService.primaryCyan, size: 28) : null,
                         ),
                         const SizedBox(width: 14),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                user?.displayName ?? 'Guest Explorer',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                user?.email ?? 'guest@getsetgo.app',
-                                style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
-                              ),
-                              const SizedBox(height: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: (isGuest ? AppColors.accentAmber : AppColors.accentGreen)
-                                      .withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: (isGuest ? AppColors.accentAmber : AppColors.accentGreen)
-                                        .withValues(alpha: 0.4),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      user?.displayName ?? 'Athlete',
+                                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
-                                ),
-                                child: Text(
-                                  isGuest
-                                      ? '⚡ Guest Mode'
-                                      : (user.authProvider == 'google'
-                                          ? '🛡️ Google Verified'
-                                          : '✉️ Email Account'),
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: isGuest ? AppColors.accentAmber : AppColors.accentGreen,
-                                  ),
+                                  const SizedBox(width: 6),
+                                  if (!isGuest)
+                                    const Icon(Icons.verified, color: ThemeService.primaryCyan, size: 16),
+                                ],
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                isGuest ? 'Guest Session (Local Storage)' : (user?.email ?? 'Signed in'),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isGuest ? Colors.amber : Colors.grey,
                                 ),
                               ),
                             ],
                           ),
                         ),
+                        if (isGuest)
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            ),
+                            onPressed: () {
+                              Navigator.pop(context);
+                              // Trigger Google Sign in
+                              AuthService.instance.signInWithGoogle();
+                            },
+                            child: const Text('Connect', style: TextStyle(fontSize: 12)),
+                          ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
 
-                  // Firebase Cloud Sync Section
+                  // Cloud Firestore Sync Section
+                  const Text(
+                    'FIREBASE FIRESTORE SYNC',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.1,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceElevated,
+                      color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: AppColors.secondary.withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0),
+                      ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.cloud_done_rounded, color: AppColors.secondary, size: 20),
-                            const SizedBox(width: 8),
-                            const Expanded(
-                              child: Text(
-                                'Firebase Cloud Sync',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                ),
-                              ),
+                            Icon(
+                              syncService.status == CloudSyncStatus.synced
+                                  ? Icons.check_circle
+                                  : syncService.status == CloudSyncStatus.syncing
+                                      ? Icons.sync
+                                      : Icons.cloud_queue,
+                              color: syncService.status == CloudSyncStatus.synced
+                                  ? ThemeService.primaryEmerald
+                                  : ThemeService.primaryCyan,
+                              size: 20,
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: AppColors.secondary.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
+                            const SizedBox(width: 10),
+                            Expanded(
                               child: Text(
-                                syncService.projectId,
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.secondary,
-                                ),
+                                syncService.status == CloudSyncStatus.synced
+                                    ? 'All local data synced with Cloud Firestore'
+                                    : syncService.status == CloudSyncStatus.syncing
+                                        ? 'Synchronizing ledger & workout split...'
+                                        : 'Cloud Sync Ready',
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 8),
                         Text(
-                          syncService.lastSyncTime != null
-                              ? 'Last Synced: ${syncService.lastSyncTime!.hour.toString().padLeft(2, "0")}:${syncService.lastSyncTime!.minute.toString().padLeft(2, "0")} • ${syncService.lastSyncTime!.day}/${syncService.lastSyncTime!.month}/${syncService.lastSyncTime!.year}'
-                              : 'No cloud sync recorded yet.',
-                          style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                          syncService.lastSyncedAt != null
+                              ? 'Last sync: ${syncService.lastSyncedAt!.toLocal().toString().split('.')[0]}'
+                              : 'No previous cloud snapshot logged',
+                          style: const TextStyle(fontSize: 11, color: Colors.grey),
                         ),
-                        if (syncService.lastErrorMessage != null) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            syncService.lastErrorMessage!,
-                            style: const TextStyle(fontSize: 11.5, color: AppColors.accentRose),
-                          ),
-                        ],
                         const SizedBox(height: 14),
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.secondary,
-                              foregroundColor: const Color(0xFF070B14),
-                            ),
+                            icon: syncService.status == CloudSyncStatus.syncing
+                                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                                : const Icon(Icons.cloud_upload_outlined, size: 18),
+                            label: Text(syncService.status == CloudSyncStatus.syncing ? 'Syncing...' : 'Sync to Firebase Cloud Now'),
                             onPressed: syncService.status == CloudSyncStatus.syncing
                                 ? null
                                 : () async {
-                                    final success = await CloudSyncService.instance.syncWithFirebase();
+                                    final ok = await syncService.syncWithFirebaseCloud();
                                     if (context.mounted) {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         SnackBar(
-                                          backgroundColor:
-                                              success ? AppColors.accentGreen : AppColors.accentRose,
-                                          content: Text(
-                                            success
-                                                ? 'Cloud Sync Complete! Data safely backed up to get-set-go-ad19f.'
-                                                : (CloudSyncService.instance.lastErrorMessage ??
-                                                    'Sync failed. Saved to local vault.'),
-                                          ),
+                                          content: Text(ok ? 'Cloud Sync Completed Successfully!' : syncService.lastErrorMessage),
+                                          backgroundColor: ok ? ThemeService.primaryEmerald : Colors.red,
                                         ),
                                       );
                                     }
                                   },
-                            icon: syncService.status == CloudSyncStatus.syncing
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                                  )
-                                : const Icon(Icons.sync_rounded, size: 18),
-                            label: Text(
-                              syncService.status == CloudSyncStatus.syncing
-                                  ? 'Syncing to Firebase...'
-                                  : 'Sync Now with Cloud',
-                              style: const TextStyle(fontWeight: FontWeight.w900),
-                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
 
-                  // Local Hierarchical JSON Vault Export
+                  // Offline JSON Vault Section
+                  const Text(
+                    'PORTABLE JSON BACKUP VAULT',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.1,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceElevated,
+                      color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: AppColors.borderLight),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0),
+                      ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Row(
+                        const Text(
+                          'Export and import complete app state (workouts, expenses, macros, profile) with zero vendor lock-in.',
+                          style: TextStyle(fontSize: 13, height: 1.4),
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
                           children: [
-                            Icon(Icons.folder_zip_rounded, color: AppColors.accentAmber, size: 20),
-                            SizedBox(width: 8),
-                            Text(
-                              'Local JSON Hierarchical Vault',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                icon: const Icon(Icons.copy, size: 16),
+                                label: const Text('Copy JSON Vault', style: TextStyle(fontSize: 12)),
+                                onPressed: () {
+                                  final jsonVault = syncService.exportCompleteVaultJson();
+                                  Clipboard.setData(ClipboardData(text: jsonVault));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Complete JSON Vault copied to clipboard!'),
+                                      backgroundColor: ThemeService.primaryEmerald,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                icon: const Icon(Icons.file_download_outlined, size: 16),
+                                label: Text(_isImportMode ? 'Cancel' : 'Import Vault', style: const TextStyle(fontSize: 12)),
+                                onPressed: () {
+                                  setState(() {
+                                    _isImportMode = !_isImportMode;
+                                  });
+                                },
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Creates a structured backup organized by Year > Month > Week > Day.',
-                          style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-                        ),
-                        if (_backupMessage != null) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            _backupMessage!,
-                            style: const TextStyle(fontSize: 11.5, color: AppColors.accentGreen),
+                        if (_isImportMode) ...[
+                          const SizedBox(height: 14),
+                          TextField(
+                            controller: _importController,
+                            maxLines: 4,
+                            decoration: const InputDecoration(
+                              hintText: 'Paste valid GetSetGo JSON vault string here...',
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: ThemeService.primaryEmerald),
+                              onPressed: () async {
+                                final text = _importController.text.trim();
+                                if (text.isEmpty) return;
+                                final success = await syncService.importCompleteVaultJson(text);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(success ? 'Vault successfully restored!' : 'Invalid JSON vault payload.'),
+                                      backgroundColor: success ? ThemeService.primaryEmerald : Colors.red,
+                                    ),
+                                  );
+                                  if (success) {
+                                    setState(() {
+                                      _isImportMode = false;
+                                      _importController.clear();
+                                    });
+                                  }
+                                }
+                              },
+                              child: const Text('Execute Restore'),
+                            ),
                           ),
                         ],
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: _isBackingUp
-                                ? null
-                                : () async {
-                                    setState(() => _isBackingUp = true);
-                                    final res = await HierarchicalStorageManager.exportFullTreeBackup();
-                                    if (mounted) {
-                                      setState(() {
-                                        _isBackingUp = false;
-                                        _backupMessage = res;
-                                      });
-                                    }
-                                  },
-                            icon: const Icon(Icons.download_rounded, size: 18),
-                            label: Text(_isBackingUp ? 'Exporting Vault...' : 'Export JSON Backup Vault'),
-                          ),
-                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
-
-                  // Sign Out / Switch Account Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: TextButton.icon(
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColors.accentRose,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      onPressed: () async {
-                        await AuthService.instance.signOut();
-                        if (context.mounted) {
-                          Navigator.pop(context);
-                        }
-                      },
-                      icon: const Icon(Icons.logout_rounded, size: 18),
-                      label: const Text(
-                        'Sign Out / Switch Account',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 30),
                 ],
-              );
-            },
-          ),
+              ),
+            );
+          },
         );
       },
     );
