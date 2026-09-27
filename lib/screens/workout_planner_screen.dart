@@ -55,7 +55,7 @@ class _WorkoutPlannerScreenState extends State<WorkoutPlannerScreen> {
               ),
               IconButton(
                 icon: const Icon(Icons.camera_alt_outlined),
-                tooltip: 'Body Photo Log',
+                tooltip: 'Body Photo Check-in',
                 onPressed: () => BodyPhotoModal.show(context),
               ),
               IconButton(
@@ -85,12 +85,8 @@ class _WorkoutPlannerScreenState extends State<WorkoutPlannerScreen> {
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   children: [
-                    // Strict Goal & Telemetry Bar
-                    _buildStrictWorkoutTelemetryHeader(context, profile, profileService, isDark),
-                    const SizedBox(height: 14),
-
-                    // Day Overview Card
-                    _buildDayHeaderCard(plan, isDark),
+                    // Day Overview Card with Strict Goal & Telemetry Tracker
+                    _buildDayHeaderCard(plan, profile, profileService, isDark),
                     const SizedBox(height: 16),
 
                     // Rest Day View or Exercise List
@@ -248,207 +244,138 @@ class _WorkoutPlannerScreenState extends State<WorkoutPlannerScreen> {
     );
   }
 
-  // 1.5 Strict Goal & Live Telemetry Bar in Workout Planner
-  Widget _buildStrictWorkoutTelemetryHeader(
-    BuildContext context,
+  // 2. Day Header Card with Status Dropdown, Strict Goal Tracker & Tap-To-Edit
+  Widget _buildDayHeaderCard(
+    DayWorkoutPlan plan,
     UserProfile profile,
     ProfileService profileService,
     bool isDark,
   ) {
+    final totalSets = plan.exercises.fold<int>(0, (sum, e) => sum + e.sets);
+    final totalReps = plan.exercises.fold<int>(0, (sum, e) => sum + (e.sets * e.reps));
+
     return Container(
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF161B22) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: const Color(0xFF6366F1).withValues(alpha: isDark ? 0.35 : 0.45),
+          color: profile.isStrictMode
+              ? const Color(0xFF6366F1).withValues(alpha: isDark ? 0.45 : 0.6)
+              : (isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0)),
+          width: 1.3,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: (profile.isStrictMode ? const Color(0xFF6366F1) : Colors.black)
+                .withValues(alpha: isDark ? 0.2 : 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.track_changes_rounded, size: 16, color: Color(0xFF818CF8)),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  profile.strictGoalTitle,
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+          // 1. Strict Goal Protocol Heading Bar (Editable on Tap)
+          InkWell(
+            onTap: () => _showEditStrictGoalDialog(context, profile, profileService),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0D1117) : const Color(0xFFEEF2FF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFF6366F1).withValues(alpha: isDark ? 0.3 : 0.5),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: profile.isStrictMode
-                      ? Colors.redAccent.withValues(alpha: 0.15)
-                      : Colors.grey.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  profile.isStrictMode ? 'STRICT' : 'STANDARD',
-                  style: TextStyle(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w900,
-                    color: profile.isStrictMode ? Colors.redAccent : Colors.grey,
+              child: Row(
+                children: [
+                  const Icon(Icons.shield_outlined, color: Color(0xFF818CF8), size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'GOAL: ${profile.strictGoalTitle}',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF818CF8),
+                        letterSpacing: 0.3,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 6),
+                  if (profile.isStrictMode)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'STRICT',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.edit_outlined, size: 13, color: Color(0xFF818CF8)),
+                ],
               ),
-            ],
+            ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
+
+          // 2. Workout Title & Meta (Tap anywhere or press Edit to modify)
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Steps counter
               Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Steps Today', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                          Text(
-                            '${profile.todaySteps} / ${profile.dailyStepTarget}',
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ThemeService.primaryEmerald),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          InkWell(
-                            onTap: () => profileService.addSteps(500),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: ThemeService.primaryEmerald.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(4),
+                child: InkWell(
+                  onTap: () => _showEditDayPlanModal(context, plan),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                plan.workoutTitle,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: -0.3,
+                                ),
                               ),
-                              child: const Text('+500', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: ThemeService.primaryEmerald)),
                             ),
-                          ),
-                          const SizedBox(width: 4),
-                          InkWell(
-                            onTap: () => profileService.addSteps(1000),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: ThemeService.primaryEmerald.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Text('+1k', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: ThemeService.primaryEmerald)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                            const SizedBox(width: 6),
+                            const Icon(Icons.edit_outlined, size: 15, color: ThemeService.primaryCyan),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${plan.primaryMuscle} • ${plan.durationMinutes} mins • ${plan.difficulty.name.toUpperCase()}',
+                          style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
 
-              // Active Time counter
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Active Time', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                          Text(
-                            '${profile.todayActiveTimeMinutes} / ${profile.dailyActiveTimeMinutesTarget}m',
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ThemeService.primaryCyan),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          InkWell(
-                            onTap: () => profileService.addActiveTime(15),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: ThemeService.primaryCyan.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Text('+15m', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: ThemeService.primaryCyan)),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          InkWell(
-                            onTap: () => profileService.addActiveTime(30),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: ThemeService.primaryCyan.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Text('+30m', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: ThemeService.primaryCyan)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 2. Day Header Card with Status Dropdown
-  Widget _buildDayHeaderCard(DayWorkoutPlan plan, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      plan.workoutTitle,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${plan.primaryMuscle} • ${plan.durationMinutes} mins • ${plan.difficulty.name.toUpperCase()}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ),
-              // Status selector pill
+              // Status Selector Dropdown Pill
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(10),
@@ -481,15 +408,604 @@ class _WorkoutPlannerScreenState extends State<WorkoutPlannerScreen> {
               ),
             ],
           ),
+
           if (plan.notes.isNotEmpty) ...[
             const SizedBox(height: 10),
-            Text(
-              plan.notes,
-              style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.grey),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.lightbulb_outline, size: 14, color: Colors.orangeAccent),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      plan.notes,
+                      style: const TextStyle(fontSize: 11.5, fontStyle: FontStyle.italic, color: Colors.grey),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
+          const SizedBox(height: 14),
+
+          // 3. Workout Routine Progress Bar & Volume Badges
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${plan.completedExercises}/${plan.totalExercises} Exercises Done',
+                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    '${(plan.completionProgress * 100).toInt()}% Done',
+                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: ThemeService.primaryCyan),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: LinearProgressIndicator(
+                  value: plan.completionProgress,
+                  minHeight: 6,
+                  backgroundColor: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0),
+                  valueColor: const AlwaysStoppedAnimation<Color>(ThemeService.primaryCyan),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  _miniMetricBadge('Sets Planned', '$totalSets sets', isDark),
+                  const SizedBox(width: 6),
+                  _miniMetricBadge('Total Volume', '$totalReps reps', isDark),
+                  const SizedBox(width: 6),
+                  _miniMetricBadge('Duration', '${plan.durationMinutes}m', isDark),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // 4. Daily Telemetry Goals: Steps & Active Time Trackers
+          Row(
+            children: [
+              // Daily Steps Tracker
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Steps Goal', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w600)),
+                          Text(
+                            '${(profile.stepsProgressRatio * 100).toInt()}%',
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: ThemeService.primaryCyan),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${profile.todaySteps} / ${profile.dailyStepTarget}',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: profile.stepsProgressRatio,
+                          minHeight: 4,
+                          backgroundColor: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0),
+                          valueColor: const AlwaysStoppedAnimation<Color>(ThemeService.primaryCyan),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => profileService.addSteps(500),
+                              borderRadius: BorderRadius.circular(6),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: ThemeService.primaryCyan.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Center(
+                                  child: Text('+500', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: ThemeService.primaryCyan)),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => profileService.addSteps(1000),
+                              borderRadius: BorderRadius.circular(6),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: ThemeService.primaryCyan.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Center(
+                                  child: Text('+1k', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: ThemeService.primaryCyan)),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Daily Active Time Tracker
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Active Time', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w600)),
+                          Text(
+                            '${(profile.activeTimeProgressRatio * 100).toInt()}%',
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orangeAccent),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${profile.todayActiveTimeMinutes} / ${profile.dailyActiveTimeMinutesTarget}m',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: profile.activeTimeProgressRatio,
+                          minHeight: 4,
+                          backgroundColor: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0),
+                          valueColor: const AlwaysStoppedAnimation<Color>(Colors.orangeAccent),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => profileService.addActiveTime(15),
+                              borderRadius: BorderRadius.circular(6),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.orangeAccent.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Center(
+                                  child: Text('+15m', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.orangeAccent)),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => profileService.addActiveTime(30),
+                              borderRadius: BorderRadius.circular(6),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.orangeAccent.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Center(
+                                  child: Text('+30m', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.orangeAccent)),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // 5. Quick Action Row
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => _showEditDayPlanModal(context, plan),
+                icon: const Icon(Icons.edit, size: 14, color: ThemeService.primaryCyan),
+                label: const Text('Edit Workout', style: TextStyle(fontSize: 12, color: ThemeService.primaryCyan)),
+                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _showEditStrictGoalDialog(context, profile, profileService),
+                icon: const Icon(Icons.tune, size: 14),
+                label: const Text('Goal Protocol', style: TextStyle(fontSize: 12)),
+                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => WeeklyReportModal.show(context),
+                icon: const Icon(Icons.analytics_outlined, size: 14, color: ThemeService.primaryEmerald),
+                label: const Text('BMI Report', style: TextStyle(fontSize: 12, color: ThemeService.primaryEmerald)),
+                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => BodyPhotoModal.show(context),
+                icon: const Icon(Icons.camera_alt_outlined, size: 14),
+                label: const Text('Body Photo', style: TextStyle(fontSize: 12)),
+                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+              ),
+            ],
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _miniMetricBadge(String label, String value, bool isDark) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Column(
+          children: [
+            Text(label, style: const TextStyle(fontSize: 9, color: Colors.grey)),
+            const SizedBox(height: 1),
+            Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Edit Day Workout Plan Modal
+  void _showEditDayPlanModal(BuildContext context, DayWorkoutPlan plan) {
+    final titleCtrl = TextEditingController(text: plan.workoutTitle);
+    final muscleCtrl = TextEditingController(text: plan.primaryMuscle);
+    final durationCtrl = TextEditingController(text: plan.durationMinutes.toString());
+    final notesCtrl = TextEditingController(text: plan.notes);
+    WorkoutDifficulty difficulty = plan.difficulty;
+    WorkoutStatus status = plan.status;
+
+    final popularMuscles = [
+      'Chest & Triceps',
+      'Back & Biceps',
+      'Legs & Core',
+      'Shoulders & Abs',
+      'Full Body',
+      'Cardio & Core',
+      'Push Hypertrophy',
+      'Pull Strength',
+      'Rest Day',
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              ),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF161B22) : Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Edit ${plan.dayName} Workout Plan',
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 20),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: titleCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Workout Title',
+                        hintText: 'e.g. Chest & Triceps Hypertrophy',
+                        prefixIcon: Icon(Icons.fitness_center_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: muscleCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Target Muscle Group',
+                        hintText: 'e.g. Chest & Triceps',
+                        prefixIcon: Icon(Icons.accessibility_new_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: popularMuscles.map((m) {
+                          final isSelected = muscleCtrl.text == m;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: ChoiceChip(
+                              label: Text(m, style: const TextStyle(fontSize: 11)),
+                              selected: isSelected,
+                              onSelected: (sel) {
+                                if (sel) {
+                                  setModalState(() {
+                                    muscleCtrl.text = m;
+                                    if (m == 'Rest Day') {
+                                      status = WorkoutStatus.restDay;
+                                    }
+                                  });
+                                }
+                              },
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: durationCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Duration (Mins)',
+                              prefixIcon: Icon(Icons.timer_outlined),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: DropdownButtonFormField<WorkoutDifficulty>(
+                            initialValue: difficulty,
+                            decoration: const InputDecoration(labelText: 'Difficulty'),
+                            items: WorkoutDifficulty.values.map((d) {
+                              return DropdownMenuItem(
+                                value: d,
+                                child: Text(d.name.toUpperCase(), style: const TextStyle(fontSize: 12)),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) setModalState(() => difficulty = val);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<WorkoutStatus>(
+                      initialValue: status,
+                      decoration: const InputDecoration(labelText: 'Day Status'),
+                      items: WorkoutStatus.values.map((s) {
+                        return DropdownMenuItem(
+                          value: s,
+                          child: Text(s.name.toUpperCase(), style: const TextStyle(fontSize: 12)),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) setModalState(() => status = val);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: notesCtrl,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: 'Strategy Notes & Form Cues',
+                        hintText: 'e.g. Focus on mind-muscle connection and 90s rest',
+                        prefixIcon: Icon(Icons.notes_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    ElevatedButton(
+                      onPressed: () {
+                        final updated = plan.copyWith(
+                          workoutTitle: titleCtrl.text.trim().isNotEmpty ? titleCtrl.text.trim() : plan.workoutTitle,
+                          primaryMuscle: muscleCtrl.text.trim().isNotEmpty ? muscleCtrl.text.trim() : plan.primaryMuscle,
+                          durationMinutes: int.tryParse(durationCtrl.text.trim()) ?? plan.durationMinutes,
+                          difficulty: difficulty,
+                          status: status,
+                          notes: notesCtrl.text.trim(),
+                        );
+                        WorkoutService.instance.updatePlan(updated);
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('${plan.dayName} workout plan updated successfully!')),
+                        );
+                      },
+                      child: const Text('Save Workout Plan'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Edit Strict Goal Dialog Modal
+  void _showEditStrictGoalDialog(
+    BuildContext context,
+    UserProfile profile,
+    ProfileService profileService,
+  ) {
+    final titleCtrl = TextEditingController(text: profile.strictGoalTitle);
+    final stepCtrl = TextEditingController(text: profile.dailyStepTarget.toString());
+    final activeCtrl = TextEditingController(text: profile.dailyActiveTimeMinutesTarget.toString());
+    bool isStrict = profile.isStrictMode;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              ),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF161B22) : Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Strict Goal & Telemetry Target',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 20),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: titleCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Strict Goal Heading Banner',
+                        hintText: 'e.g. Strict 10,000 Steps & Lean Hypertrophy Protocol',
+                        prefixIcon: Icon(Icons.flag_outlined),
+                      ),
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: stepCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Daily Step Target',
+                              prefixIcon: Icon(Icons.directions_walk_rounded),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: activeCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Active Time (Mins)',
+                              prefixIcon: Icon(Icons.timer_outlined),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Enforce Strict Mode Protocol', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('Highlight strict discipline banners and compliance badges', style: TextStyle(fontSize: 12)),
+                      value: isStrict,
+                      activeTrackColor: ThemeService.primaryCyan,
+                      onChanged: (val) => setModalState(() => isStrict = val),
+                    ),
+                    const SizedBox(height: 18),
+                    ElevatedButton(
+                      onPressed: () {
+                        final st = int.tryParse(stepCtrl.text.trim()) ?? profile.dailyStepTarget;
+                        final at = int.tryParse(activeCtrl.text.trim()) ?? profile.dailyActiveTimeMinutesTarget;
+                        profileService.updateStrictGoal(
+                          strictGoalTitle: titleCtrl.text.trim().isNotEmpty ? titleCtrl.text.trim() : profile.strictGoalTitle,
+                          dailyStepTarget: st,
+                          dailyActiveTimeMinutesTarget: at,
+                          isStrictMode: isStrict,
+                        );
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Strict Goal Protocol updated successfully!')),
+                        );
+                      },
+                      child: const Text('Save Strict Goal Protocol'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
