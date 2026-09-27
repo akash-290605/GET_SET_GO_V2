@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import '../db_helper.dart';
 import '../services/profile_service.dart';
 import '../services/theme_service.dart';
-import '../widgets/glass_card.dart';
 
 class ExpenseScreen extends StatefulWidget {
   const ExpenseScreen({super.key});
@@ -294,7 +293,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> with SingleTickerProvider
   }
 
   Widget _buildOverviewTab() {
-    final isDark = ThemeService.instance.isDarkMode(context);
+    final theme = Theme.of(context);
     final curSym = ProfileService.instance.currencySymbol;
     final income = _totalIncome;
     final expenses = _totalExpenses;
@@ -326,7 +325,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> with SingleTickerProvider
                 return Padding(
                   padding: const EdgeInsets.only(right: 6),
                   child: FilterChip(
-                    label: Text(f, style: TextStyle(fontSize: 12, color: isSelected ? Colors.white : AppColors.textPrimary(isDark))),
+                    label: Text(f, style: TextStyle(fontSize: 12, color: isSelected ? Colors.white : null)),
                     selected: isSelected,
                     selectedColor: AppColors.secondary,
                     onSelected: (val) {
@@ -340,23 +339,32 @@ class _ExpenseScreenState extends State<ExpenseScreen> with SingleTickerProvider
           const SizedBox(height: 16),
 
           // Main Balance & Summary Card
-          GlassCard(
-            borderRadius: 22,
-            gradient: LinearGradient(
-              colors: isDark
-                  ? [const Color(0xFF1E1B4B), const Color(0xFF0F172A)]
-                  : [AppColors.primary.withValues(alpha: 0.10), AppColors.secondary.withValues(alpha: 0.06)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1E1B4B), Color(0xFF0F172A)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.15),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
             ),
-            border: Border.all(color: AppColors.secondary.withValues(alpha: isDark ? 0.35 : 0.25)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('NET SAVINGS (${_filter.toUpperCase()})', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textSecondary(isDark), letterSpacing: 1.1)),
+                    Text('NET SAVINGS (${_filter.toUpperCase()})', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white60, letterSpacing: 1.1)),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
@@ -376,7 +384,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> with SingleTickerProvider
                   style: TextStyle(
                     fontSize: 30,
                     fontWeight: FontWeight.w900,
-                    color: savings >= 0 ? AppColors.textPrimary(isDark) : AppColors.accentRose,
+                    color: savings >= 0 ? Colors.white : AppColors.accentRose,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -390,7 +398,6 @@ class _ExpenseScreenState extends State<ExpenseScreen> with SingleTickerProvider
                         amount: '$curSym ${income.toStringAsFixed(0)}',
                         icon: Icons.arrow_downward_rounded,
                         color: AppColors.accentGreen,
-                        isDark: isDark,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -400,7 +407,6 @@ class _ExpenseScreenState extends State<ExpenseScreen> with SingleTickerProvider
                         amount: '$curSym ${expenses.toStringAsFixed(0)}',
                         icon: Icons.arrow_upward_rounded,
                         color: AppColors.accentRose,
-                        isDark: isDark,
                       ),
                     ),
                   ],
@@ -411,9 +417,14 @@ class _ExpenseScreenState extends State<ExpenseScreen> with SingleTickerProvider
           const SizedBox(height: 16),
 
           // Monthly Budget & Safe Daily Spend Card
-          GlassCard(
-            borderRadius: 18,
-            border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.cardColor,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -423,9 +434,9 @@ class _ExpenseScreenState extends State<ExpenseScreen> with SingleTickerProvider
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Monthly Budget Cap', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary(isDark))),
+                        const Text('Monthly Budget Cap', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
                         const SizedBox(height: 2),
-                        Text('$curSym ${budgetCap.toStringAsFixed(0)}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppColors.textPrimary(isDark))),
+                        Text('$curSym ${budgetCap.toStringAsFixed(0)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
                       ],
                     ),
                     Column(
@@ -444,14 +455,14 @@ class _ExpenseScreenState extends State<ExpenseScreen> with SingleTickerProvider
                   child: LinearProgressIndicator(
                     value: budgetUsagePercent,
                     minHeight: 8,
-                    backgroundColor: isDark ? const Color(0x1FFFFFFF) : const Color(0x1F0F172A),
+                    backgroundColor: theme.dividerColor.withValues(alpha: 0.1),
                     valueColor: AlwaysStoppedAnimation<Color>(budgetUsagePercent >= 0.9 ? AppColors.accentRose : AppColors.secondary),
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   '${(budgetUsagePercent * 100).toStringAsFixed(0)}% used • $curSym ${budgetRemaining.toStringAsFixed(0)} remaining across $daysRemaining days',
-                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary(isDark)),
+                  style: TextStyle(fontSize: 11, color: theme.hintColor),
                 ),
               ],
             ),
@@ -460,11 +471,16 @@ class _ExpenseScreenState extends State<ExpenseScreen> with SingleTickerProvider
 
           // Category Breakdown
           if (categories.isNotEmpty) ...[
-            Text('Spending by Category', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary(isDark))),
+            Text('Spending by Category', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
-            GlassCard(
-              borderRadius: 18,
-              border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.cardColor,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+              ),
               child: Column(
                 children: categories.entries.map((entry) {
                   final catName = entry.key;
@@ -479,11 +495,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> with SingleTickerProvider
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(catName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary(isDark))),
-                            Text(
-                              '$curSym ${catAmt.toStringAsFixed(0)} (${(catPct * 100).toStringAsFixed(0)}%)',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: AppColors.textPrimary(isDark)),
-                            ),
+                            Text(catName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            Text('$curSym ${catAmt.toStringAsFixed(0)} (${(catPct * 100).toStringAsFixed(0)}%)', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
                           ],
                         ),
                         const SizedBox(height: 6),
@@ -492,7 +505,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> with SingleTickerProvider
                           child: LinearProgressIndicator(
                             value: catPct,
                             minHeight: 6,
-                            backgroundColor: isDark ? const Color(0x1FFFFFFF) : const Color(0x1F0F172A),
+                            backgroundColor: theme.dividerColor.withValues(alpha: 0.1),
                             valueColor: AlwaysStoppedAnimation<Color>(_getCategoryColor(catName)),
                           ),
                         ),
@@ -509,7 +522,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> with SingleTickerProvider
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Transactions (${transactions.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary(isDark))),
+              Text('Transactions (${transactions.length})', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
               TextButton.icon(
                 icon: const Icon(Icons.add_rounded, size: 18),
                 label: const Text('Add'),
@@ -521,11 +534,15 @@ class _ExpenseScreenState extends State<ExpenseScreen> with SingleTickerProvider
 
           // Transactions List
           if (transactions.isEmpty)
-            GlassCard(
-              borderRadius: 16,
+            Container(
+              width: double.infinity,
               padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: theme.cardColor,
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Center(
-                child: Text('No transactions recorded for $_filter', style: TextStyle(color: AppColors.textSecondary(isDark))),
+                child: Text('No transactions recorded for $_filter', style: TextStyle(color: theme.hintColor)),
               ),
             )
           else
@@ -540,63 +557,51 @@ class _ExpenseScreenState extends State<ExpenseScreen> with SingleTickerProvider
                 final dateStr = item['date'] as String? ?? '';
                 final date = DateTime.tryParse(dateStr) ?? DateTime.now();
 
-                return GlassCard(
+                return Card(
                   margin: const EdgeInsets.only(bottom: 8),
-                  borderRadius: 14,
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: (isInc ? AppColors.accentGreen : AppColors.accentRose).withValues(alpha: isDark ? 0.20 : 0.12),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          isInc ? Icons.arrow_downward_rounded : Icons.shopping_bag_outlined,
-                          color: isInc ? AppColors.accentGreen : AppColors.accentRose,
-                          size: 20,
-                        ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  child: ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: (isInc ? AppColors.accentGreen : AppColors.accentRose).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item['title'] ?? item['description'] ?? 'Transaction',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary(isDark)),
-                            ),
-                            Text(
-                              '${item['category'] ?? 'General'} • ${DateFormat('dd MMM, hh:mm a').format(date)}',
-                              style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary(isDark)),
-                            ),
+                      child: Icon(
+                        isInc ? Icons.arrow_downward_rounded : Icons.shopping_bag_outlined,
+                        color: isInc ? AppColors.accentGreen : AppColors.accentRose,
+                        size: 20,
+                      ),
+                    ),
+                    title: Text(item['title'] ?? item['description'] ?? 'Transaction', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    subtitle: Text('${item['category'] ?? 'General'} • ${DateFormat('dd MMM, hh:mm a').format(date)}', style: TextStyle(fontSize: 11.5, color: theme.hintColor)),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${isInc ? '+' : '-'}$curSym ${amt.toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 14,
+                            color: isInc ? AppColors.accentGreen : AppColors.accentRose,
+                          ),
+                        ),
+                        PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert_rounded, size: 18),
+                          onSelected: (val) {
+                            if (val == 'edit') {
+                              _addOrEditTransactionDialog(item);
+                            } else if (val == 'delete') {
+                              _deleteTransaction(item['id']);
+                            }
+                          },
+                          itemBuilder: (ctx) => [
+                            const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                            const PopupMenuItem(value: 'delete', child: Text('Delete', style: TextStyle(color: AppColors.accentRose))),
                           ],
                         ),
-                      ),
-                      Text(
-                        '${isInc ? '+' : '-'}$curSym ${amt.toStringAsFixed(0)}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 14,
-                          color: isInc ? AppColors.accentGreen : AppColors.accentRose,
-                        ),
-                      ),
-                      PopupMenuButton<String>(
-                        icon: Icon(Icons.more_vert_rounded, size: 18, color: AppColors.textSecondary(isDark)),
-                        onSelected: (val) {
-                          if (val == 'edit') {
-                            _addOrEditTransactionDialog(item);
-                          } else if (val == 'delete') {
-                            _deleteTransaction(item['id']);
-                          }
-                        },
-                        itemBuilder: (ctx) => [
-                          const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                          const PopupMenuItem(value: 'delete', child: Text('Delete', style: TextStyle(color: AppColors.accentRose))),
-                        ],
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 );
               },
@@ -608,7 +613,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> with SingleTickerProvider
   }
 
   Widget _buildRecurringTab() {
-    final isDark = ThemeService.instance.isDarkMode(context);
+    final theme = Theme.of(context);
     final curSym = ProfileService.instance.currencySymbol;
     final recurring = _recurringExpenses;
     final recurringTotal = recurring.fold(0.0, (sum, t) => sum + ((t['amount'] as num?)?.toDouble() ?? 0.0));
@@ -618,37 +623,43 @@ class _ExpenseScreenState extends State<ExpenseScreen> with SingleTickerProvider
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          GlassCard(
-            borderRadius: 18,
-            border: Border.all(color: AppColors.secondary.withValues(alpha: isDark ? 0.35 : 0.25)),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: theme.cardColor,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.secondary.withValues(alpha: 0.3)),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('MONTHLY RECURRING COMMITMENTS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.secondary, letterSpacing: 1.1)),
                 const SizedBox(height: 6),
-                Text(
-                  '$curSym ${recurringTotal.toStringAsFixed(0)} / month',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.textPrimary(isDark)),
-                ),
+                Text('$curSym ${recurringTotal.toStringAsFixed(0)} / month', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 4),
-                Text('Includes gym memberships, streaming subscriptions, broadband & fixed rent.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark))),
+                Text('Includes gym memberships, streaming subscriptions, broadband & fixed rent.', style: TextStyle(fontSize: 12, color: theme.hintColor)),
               ],
             ),
           ),
           const SizedBox(height: 16),
 
           if (recurring.isEmpty)
-            GlassCard(
-              borderRadius: 16,
+            Container(
+              width: double.infinity,
               padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: theme.cardColor,
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Center(
                 child: Column(
                   children: [
-                    Icon(Icons.repeat_rounded, size: 48, color: AppColors.textSecondary(isDark)),
+                    Icon(Icons.repeat_rounded, size: 48, color: theme.hintColor.withValues(alpha: 0.4)),
                     const SizedBox(height: 12),
-                    Text('No recurring expenses marked', style: TextStyle(color: AppColors.textPrimary(isDark), fontWeight: FontWeight.bold)),
+                    Text('No recurring expenses marked', style: TextStyle(color: theme.hintColor, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
-                    Text('Toggle "Recurring" when adding a transaction to track fixed monthly bills.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark)), textAlign: TextAlign.center),
+                    Text('Toggle "Recurring" when adding a transaction to track fixed monthly bills.', style: TextStyle(fontSize: 12, color: theme.hintColor), textAlign: TextAlign.center),
                   ],
                 ),
               ),
@@ -661,41 +672,17 @@ class _ExpenseScreenState extends State<ExpenseScreen> with SingleTickerProvider
               itemBuilder: (context, index) {
                 final item = recurring[index];
                 final amt = (item['amount'] as num?)?.toDouble() ?? 0.0;
-                return GlassCard(
+                return Card(
                   margin: const EdgeInsets.only(bottom: 8),
-                  borderRadius: 14,
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: AppColors.secondary.withValues(alpha: isDark ? 0.20 : 0.12),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.repeat_rounded, color: AppColors.secondary, size: 20),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item['title'] ?? item['description'] ?? 'Recurring Bill',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary(isDark)),
-                            ),
-                            Text(
-                              item['category'] ?? 'Subscriptions',
-                              style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark)),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Text(
-                        '$curSym ${amt.toStringAsFixed(0)}',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary(isDark)),
-                      ),
-                    ],
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  child: ListTile(
+                    leading: const CircleAvatar(
+                      backgroundColor: Color(0x2206B6D4),
+                      child: Icon(Icons.repeat_rounded, color: AppColors.secondary, size: 20),
+                    ),
+                    title: Text(item['title'] ?? item['description'] ?? 'Recurring Bill', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(item['category'] ?? 'Subscriptions', style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                    trailing: Text('$curSym ${amt.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                   ),
                 );
               },
@@ -710,14 +697,13 @@ class _ExpenseScreenState extends State<ExpenseScreen> with SingleTickerProvider
     required String amount,
     required IconData icon,
     required Color color,
-    required bool isDark,
   }) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: isDark ? 0.16 : 0.10),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: isDark ? 0.30 : 0.20)),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
       child: Row(
         children: [
@@ -728,14 +714,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> with SingleTickerProvider
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(label, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.bold)),
-                Text(
-                  amount,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary(isDark),
-                  ),
-                ),
+                Text(amount, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
               ],
             ),
           ),

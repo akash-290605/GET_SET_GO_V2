@@ -223,7 +223,7 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
                                           color: AppColors.secondary,
                                           onTap: () {
                                             Navigator.pop(context);
-                                            widget.onNavigateTab?.call(3);
+                                            widget.onNavigateTab?.call(5);
                                           },
                                         )),
                                     const SizedBox(height: 12),
@@ -239,7 +239,7 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
                                           color: AppColors.accentAmber,
                                           onTap: () {
                                             Navigator.pop(context);
-                                            widget.onNavigateTab?.call(4);
+                                            widget.onNavigateTab?.call(6);
                                           },
                                         )),
                                     const SizedBox(height: 12),
@@ -255,7 +255,7 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
                                           color: AppColors.accentRose,
                                           onTap: () {
                                             Navigator.pop(context);
-                                            widget.onNavigateTab?.call(5);
+                                            widget.onNavigateTab?.call(7);
                                           },
                                         )),
                                   ],

@@ -13,8 +13,8 @@ void main() {
     expect(find.text('Home'), findsOneWidget);
     expect(find.text('Workout'), findsOneWidget);
     expect(find.text('Nutrition'), findsOneWidget);
-    expect(find.text('Finance'), findsOneWidget);
-    expect(find.text('Study'), findsOneWidget);
+    expect(find.text('Vitals'), findsOneWidget);
+    expect(find.text('Goals'), findsOneWidget);
     expect(find.text('AI Coach'), findsOneWidget);
 
     // Verify dashboard metrics & sections

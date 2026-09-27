@@ -859,15 +859,26 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final isDark = ThemeService.instance.isDarkMode(context);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text('Strict Discipline & Goals', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        title: Text(
+          'Strict Discipline & Goals',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary(isDark),
+          ),
+        ),
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: AppColors.primary,
+          labelColor: AppColors.primary,
+          unselectedLabelColor: AppColors.textSecondary(isDark),
           tabs: [
             Tab(
               icon: const Icon(Icons.track_changes_rounded),
@@ -892,14 +903,14 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
           : TabBarView(
               controller: _tabController,
               children: [
-                _buildActiveGoalsTab(theme),
-                _buildApologyArchiveTab(theme),
+                _buildActiveGoalsTab(isDark),
+                _buildApologyArchiveTab(isDark),
               ],
             ),
     );
   }
 
-  Widget _buildActiveGoalsTab(ThemeData theme) {
+  Widget _buildActiveGoalsTab(bool isDark) {
     final filtered = _filteredGoals;
     final completedCount = _goals.where((g) => g.isCompletedToday).length;
     final strictCount = _goals.where((g) => g.isStrict).length;
@@ -923,6 +934,7 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
                     subtitle: 'Checked in today',
                     icon: Icons.check_circle_rounded,
                     color: AppColors.accentGreen,
+                    isDark: isDark,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -933,6 +945,7 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
                     subtitle: '$strictCount strict active',
                     icon: Icons.local_fire_department_rounded,
                     color: AppColors.accentRose,
+                    isDark: isDark,
                   ),
                 ),
               ],
@@ -963,13 +976,15 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
             // Goals List
             if (filtered.isEmpty)
               GlassCard(
+                borderRadius: 16,
+                padding: const EdgeInsets.all(32),
                 child: Column(
                   children: [
-                    const Icon(Icons.checklist_rounded, size: 48, color: AppColors.textMuted),
+                    Icon(Icons.checklist_rounded, size: 48, color: AppColors.textSecondary(isDark)),
                     const SizedBox(height: 12),
-                    Text('No goals found in this view', style: TextStyle(fontWeight: FontWeight.bold, color: theme.hintColor)),
+                    Text('No goals found in this view', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark))),
                     const SizedBox(height: 6),
-                    Text('Tap "+ New Goal" to set a strict habit or to-do item.', style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                    Text('Tap "+ New Goal" to set a strict habit or to-do item.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark))),
                   ],
                 ),
               )
@@ -981,7 +996,7 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
                 separatorBuilder: (_, __) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
                   final goal = filtered[index];
-                  return _buildGoalCard(goal, theme);
+                  return _buildGoalCard(goal, isDark);
                 },
               ),
             const SizedBox(height: 80), // Fab spacing
@@ -997,11 +1012,10 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
     required String subtitle,
     required IconData icon,
     required Color color,
+    required bool isDark,
   }) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     return GlassCard(
-      borderColor: color.withValues(alpha: 0.35),
+      borderColor: color.withValues(alpha: 0.30),
       child: Row(
         children: [
           Container(
@@ -1024,20 +1038,20 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
     );
   }
 
-  Widget _buildGoalCard(GoalItem goal, ThemeData theme) {
-    final isDark = theme.brightness == Brightness.dark;
+  Widget _buildGoalCard(GoalItem goal, bool isDark) {
     final isDone = goal.isCompletedToday;
     final isBroken = goal.isStrict && goal.isStreakBroken;
     final progress = goal.progressPercentage;
 
     return GlassCard(
+      borderRadius: 16,
       borderColor: isBroken
           ? AppColors.accentRose.withValues(alpha: 0.6)
           : isDone
-              ? AppColors.accentGreen.withValues(alpha: 0.4)
-              : goal.isStrict
+              ? AppColors.accentGreen.withValues(alpha: 0.45)
+              : (goal.isStrict
                   ? AppColors.accentRose.withValues(alpha: 0.25)
-                  : AppColors.primary.withValues(alpha: 0.25),
+                  : AppColors.primary.withValues(alpha: 0.25)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1077,15 +1091,15 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                     decoration: BoxDecoration(
-                      color: theme.dividerColor.withValues(alpha: 0.1),
+                      color: isDark ? const Color(0x1FFFFFFF) : const Color(0x1F0F172A),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Text(goal.category, style: TextStyle(fontSize: 10, color: theme.hintColor)),
+                    child: Text(goal.category, style: TextStyle(fontSize: 10, color: AppColors.textSecondary(isDark))),
                   ),
                 ],
               ),
               PopupMenuButton<String>(
-                icon: const Icon(Icons.more_horiz_rounded, size: 20),
+                icon: Icon(Icons.more_horiz_rounded, size: 20, color: AppColors.textSecondary(isDark)),
                 onSelected: (val) {
                   if (val == 'edit') {
                     _showEditGoalDialog(goal);
@@ -1231,7 +1245,7 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 6,
-              backgroundColor: theme.dividerColor.withValues(alpha: 0.1),
+              backgroundColor: isDark ? const Color(0x1FFFFFFF) : const Color(0x1F0F172A),
               valueColor: AlwaysStoppedAnimation<Color>(
                 isBroken
                     ? AppColors.accentRose
@@ -1269,7 +1283,7 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
     );
   }
 
-  Widget _buildApologyArchiveTab(ThemeData theme) {
+  Widget _buildApologyArchiveTab(bool isDark) {
     if (_deletedGoals.isEmpty) {
       return Center(
         child: Padding(
@@ -1286,11 +1300,11 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
                 child: const Icon(Icons.verified_user_rounded, size: 54, color: AppColors.accentGreen),
               ),
               const SizedBox(height: 16),
-              Text('Clean Record of Discipline! 🛡️', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textPrimary(theme.brightness == Brightness.dark))),
+              Text('Clean Record of Discipline! 🛡️', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark))),
               const SizedBox(height: 6),
               Text(
                 'You have not abandoned any strict discipline goals. Keep your commitments strong and unbreakable!',
-                style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary(theme.brightness == Brightness.dark), height: 1.4),
+                style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary(isDark), height: 1.4),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -1299,7 +1313,6 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
       );
     }
 
-    final isDark = theme.brightness == Brightness.dark;
     return RefreshIndicator(
       onRefresh: _loadData,
       child: ListView.separated(
@@ -1311,6 +1324,7 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
           final dateStr = '${record.deletedAt.day.toString().padLeft(2, '0')} ${_getMonthName(record.deletedAt.month)} ${record.deletedAt.year}';
 
           return GlassCard(
+            borderRadius: 16,
             borderColor: AppColors.accentRose.withValues(alpha: 0.35),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1359,7 +1373,7 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: theme.dividerColor.withValues(alpha: 0.1),
+                    color: isDark ? const Color(0x1FFFFFFF) : const Color(0x1F0F172A),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text('Cause: ${record.reason}', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AppColors.textPrimary(isDark))),
@@ -1373,9 +1387,9 @@ class _DisciplineGoalsScreenState extends State<DisciplineGoalsScreen> with Sing
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF0F172A).withValues(alpha: 0.4) : const Color(0xFFF1F5F9),
+                    color: isDark ? const Color(0xFF1E293B).withValues(alpha: 0.6) : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: theme.dividerColor.withValues(alpha: 0.15)),
+                    border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
                   ),
                   child: Text(
                     '"${record.apologyLetter}"',

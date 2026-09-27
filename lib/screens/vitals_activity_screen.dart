@@ -209,14 +209,24 @@ class _DailyActivityAndVitalsScreenState extends State<DailyActivityAndVitalsScr
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = ThemeService.instance.isDarkMode(context);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text('Activity, Vitals & Hydration', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        title: Text(
+          'Activity, Vitals & Hydration',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary(isDark),
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.tune_rounded, size: 22),
+            icon: Icon(Icons.tune_rounded, size: 22, color: AppColors.textPrimary(isDark)),
             tooltip: 'Customize Targets',
             onPressed: _showEditTargetsDialog,
           ),
@@ -224,6 +234,8 @@ class _DailyActivityAndVitalsScreenState extends State<DailyActivityAndVitalsScr
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: AppColors.primary,
+          labelColor: AppColors.primary,
+          unselectedLabelColor: AppColors.textSecondary(isDark),
           labelPadding: const EdgeInsets.symmetric(horizontal: 4),
           tabs: const [
             Tab(icon: Icon(Icons.directions_walk_rounded), text: 'Steps'),
@@ -1231,7 +1243,7 @@ class _DailyActivityAndVitalsScreenState extends State<DailyActivityAndVitalsScr
                       style: TextStyle(
                         fontSize: 10.5,
                         fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                        color: isToday ? barColor : null,
+                        color: isToday ? barColor : theme.hintColor,
                       ),
                     ),
                   ],
@@ -1250,6 +1262,7 @@ class _DailyActivityAndVitalsScreenState extends State<DailyActivityAndVitalsScr
     required String value,
     required Color color,
   }) {
+    final theme = Theme.of(context);
     return Column(
       children: [
         Container(
@@ -1259,7 +1272,7 @@ class _DailyActivityAndVitalsScreenState extends State<DailyActivityAndVitalsScr
         ),
         const SizedBox(height: 4),
         Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-        Text(label, style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
+        Text(label, style: TextStyle(fontSize: 10, color: theme.hintColor)),
       ],
     );
   }

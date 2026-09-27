@@ -6,7 +6,6 @@ import '../models/food_models.dart';
 import '../services/gemini_service.dart';
 import '../services/profile_service.dart';
 import '../services/theme_service.dart';
-import '../widgets/glass_card.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -473,7 +472,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final currentThemeMode = ThemeService.instance.themeMode;
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Settings & Preferences', style: TextStyle(fontWeight: FontWeight.bold)),
       ),
@@ -482,8 +480,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           // Profile & Body Metrics Section
           _buildSectionHeader('Profile & Fitness Metrics'),
-          GlassCard(
-            padding: EdgeInsets.zero,
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Column(
               children: [
                 ListTile(
@@ -514,8 +512,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           // Appearance & Theme Mode Section
           _buildSectionHeader('Appearance & Theme'),
-          GlassCard(
-            padding: EdgeInsets.zero,
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Column(
               children: [
                 ListTile(
@@ -557,8 +555,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           // Finance & Nutrition Section
           _buildSectionHeader('Finance & Nutrition Preferences'),
-          GlassCard(
-            padding: EdgeInsets.zero,
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Column(
               children: [
                 ListTile(
@@ -583,8 +581,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           // Study & English Section
           _buildSectionHeader('Study & English Preferences'),
-          GlassCard(
-            padding: EdgeInsets.zero,
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Column(
               children: [
                 ListTile(
@@ -617,8 +615,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           // AI Coach Configuration
           _buildSectionHeader('AI Intelligence & Keys'),
-          GlassCard(
-            padding: EdgeInsets.zero,
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: ListTile(
               leading: const Icon(Icons.auto_awesome_rounded, color: AppColors.accentAmber),
               title: const Text('Gemini API Key', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -631,8 +629,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           // Data Management & Backup
           _buildSectionHeader('Data Management'),
-          GlassCard(
-            padding: EdgeInsets.zero,
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Column(
               children: [
                 ListTile(

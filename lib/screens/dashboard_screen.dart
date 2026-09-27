@@ -351,13 +351,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _buildHeroMiniChip('💪 Workout', _todayWorkout != null ? _todayWorkout!.workoutName : 'Rest Day', AppColors.primary, isDark),
+                _buildHeroMiniChip(
+                  '💪 Workout',
+                  _todayWorkout != null ? _todayWorkout!.workoutName : 'Rest Day',
+                  AppColors.primary,
+                  isDark,
+                  onTap: () => widget.onNavigateTab != null
+                      ? widget.onNavigateTab!(1)
+                      : Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkoutScreen())),
+                ),
                 const SizedBox(width: 8),
-                _buildHeroMiniChip('🍎 Calories', '~${_todayCalories.toStringAsFixed(0)} / ${profile.nutritionTarget.calorieTarget.toStringAsFixed(0)}', AppColors.accentGreen, isDark),
+                _buildHeroMiniChip(
+                  '🍎 Calories',
+                  '~${_todayCalories.toStringAsFixed(0)} / ${profile.nutritionTarget.calorieTarget.toStringAsFixed(0)}',
+                  AppColors.accentGreen,
+                  isDark,
+                  onTap: () => widget.onNavigateTab != null
+                      ? widget.onNavigateTab!(2)
+                      : Navigator.push(context, MaterialPageRoute(builder: (_) => const FoodTrackingScreen())),
+                ),
                 const SizedBox(width: 8),
-                _buildHeroMiniChip('💰 Budget Left', '₹${(profile.monthlyBudgetCap - (_monthlyFinanceStats['expenses'] as double)).toStringAsFixed(0)}', AppColors.secondary, isDark),
+                _buildHeroMiniChip(
+                  '💰 Budget Left',
+                  '₹${(profile.monthlyBudgetCap - (_monthlyFinanceStats['expenses'] as double)).toStringAsFixed(0)}',
+                  AppColors.secondary,
+                  isDark,
+                  onTap: () => widget.onNavigateTab != null
+                      ? widget.onNavigateTab!(5)
+                      : Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseScreen())),
+                ),
                 const SizedBox(width: 8),
-                _buildHeroMiniChip('📚 Study Goal', '$_todayStudyMinutes / 120m', AppColors.purple, isDark),
+                _buildHeroMiniChip(
+                  '📚 Study Goal',
+                  '$_todayStudyMinutes / 120m',
+                  AppColors.purple,
+                  isDark,
+                  onTap: () => widget.onNavigateTab != null
+                      ? widget.onNavigateTab!(6)
+                      : Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyAndEnglishScreen())),
+                ),
               ],
             ),
           ),
@@ -366,27 +398,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildHeroMiniChip(String label, String value, Color color, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: isDark ? 0.15 : 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: isDark ? 0.35 : 0.25)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('$label: ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary(isDark),
+  Widget _buildHeroMiniChip(String label, String value, Color color, bool isDark, {VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: isDark ? 0.15 : 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha: isDark ? 0.35 : 0.25)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('$label: ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary(isDark),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -445,7 +481,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProgressScreen())),
+                onPressed: () {
+                  if (widget.onNavigateTab != null) {
+                    widget.onNavigateTab!(9);
+                  } else {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ProgressScreen()));
+                  }
+                },
                 icon: const Icon(Icons.insights_rounded, size: 16),
                 label: const Text('View Details', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
               ),
@@ -460,7 +502,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 onPressed: () {
                   if (widget.onNavigateTab != null) {
-                    widget.onNavigateTab!(6);
+                    widget.onNavigateTab!(8);
                   } else {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const AiCoachScreen()));
                   }
@@ -494,31 +536,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 label: 'Scan Food AI',
                 color: AppColors.accentGreen,
                 isDark: isDark,
-                onTap: () => widget.onNavigateTab != null ? widget.onNavigateTab!(2) : Navigator.push(context, MaterialPageRoute(builder: (_) => const FoodTrackingScreen())),
-              ),
-              const SizedBox(width: 8),
-              _buildQuickActionButton(
-                icon: Icons.add_card_rounded,
-                label: 'Add Expense',
-                color: AppColors.secondary,
-                isDark: isDark,
-                onTap: () => widget.onNavigateTab != null ? widget.onNavigateTab!(3) : Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseScreen())),
-              ),
-              const SizedBox(width: 8),
-              _buildQuickActionButton(
-                icon: Icons.fitness_center_rounded,
-                label: 'Start Workout',
-                color: AppColors.primary,
-                isDark: isDark,
-                onTap: () => widget.onNavigateTab != null ? widget.onNavigateTab!(1) : Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkoutScreen())),
-              ),
-              const SizedBox(width: 8),
-              _buildQuickActionButton(
-                icon: Icons.school_rounded,
-                label: 'Start Study',
-                color: AppColors.purple,
-                isDark: isDark,
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyAndEnglishScreen())),
+                onTap: () => widget.onNavigateTab != null
+                    ? widget.onNavigateTab!(2)
+                    : Navigator.push(context, MaterialPageRoute(builder: (_) => const FoodTrackingScreen())),
               ),
               const SizedBox(width: 8),
               _buildQuickActionButton(
@@ -526,7 +546,49 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 label: 'Vitals & Water',
                 color: AppColors.accentBlue,
                 isDark: isDark,
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyActivityAndVitalsScreen())),
+                onTap: () => widget.onNavigateTab != null
+                    ? widget.onNavigateTab!(3)
+                    : Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyActivityAndVitalsScreen())),
+              ),
+              const SizedBox(width: 8),
+              _buildQuickActionButton(
+                icon: Icons.track_changes_rounded,
+                label: 'Strict Goals',
+                color: AppColors.accentRose,
+                isDark: isDark,
+                onTap: () => widget.onNavigateTab != null
+                    ? widget.onNavigateTab!(4)
+                    : Navigator.push(context, MaterialPageRoute(builder: (_) => const DisciplineGoalsScreen())),
+              ),
+              const SizedBox(width: 8),
+              _buildQuickActionButton(
+                icon: Icons.fitness_center_rounded,
+                label: 'Start Workout',
+                color: AppColors.primary,
+                isDark: isDark,
+                onTap: () => widget.onNavigateTab != null
+                    ? widget.onNavigateTab!(1)
+                    : Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkoutScreen())),
+              ),
+              const SizedBox(width: 8),
+              _buildQuickActionButton(
+                icon: Icons.add_card_rounded,
+                label: 'Add Expense',
+                color: AppColors.secondary,
+                isDark: isDark,
+                onTap: () => widget.onNavigateTab != null
+                    ? widget.onNavigateTab!(5)
+                    : Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseScreen())),
+              ),
+              const SizedBox(width: 8),
+              _buildQuickActionButton(
+                icon: Icons.school_rounded,
+                label: 'Start Study',
+                color: AppColors.purple,
+                isDark: isDark,
+                onTap: () => widget.onNavigateTab != null
+                    ? widget.onNavigateTab!(6)
+                    : Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyAndEnglishScreen())),
               ),
               const SizedBox(width: 8),
               _buildQuickActionButton(
@@ -534,7 +596,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 label: 'Ask AI Coach',
                 color: AppColors.primaryGlow,
                 isDark: isDark,
-                onTap: () => widget.onNavigateTab != null ? widget.onNavigateTab!(6) : Navigator.push(context, MaterialPageRoute(builder: (_) => const AiCoachScreen())),
+                onTap: () => widget.onNavigateTab != null
+                    ? widget.onNavigateTab!(8)
+                    : Navigator.push(context, MaterialPageRoute(builder: (_) => const AiCoachScreen())),
               ),
             ],
           ),
@@ -730,7 +794,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
               InkWell(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DisciplineGoalsScreen())),
+                onTap: () {
+                  if (widget.onNavigateTab != null) {
+                    widget.onNavigateTab!(4);
+                  } else {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const DisciplineGoalsScreen()));
+                  }
+                },
                 child: const Text('Strict Goals Hub →', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppColors.primary)),
               ),
             ],
@@ -746,7 +816,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
           // Steps
           InkWell(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyActivityAndVitalsScreen(initialTabIndex: 0))),
+            onTap: () {
+              if (widget.onNavigateTab != null) {
+                widget.onNavigateTab!(3);
+              } else {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyActivityAndVitalsScreen(initialTabIndex: 0)));
+              }
+            },
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -800,7 +876,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
           // Active Mins
           InkWell(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyActivityAndVitalsScreen(initialTabIndex: 1))),
+            onTap: () {
+              if (widget.onNavigateTab != null) {
+                widget.onNavigateTab!(3);
+              } else {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyActivityAndVitalsScreen(initialTabIndex: 1)));
+              }
+            },
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -845,7 +927,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
           // Water
           InkWell(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyActivityAndVitalsScreen(initialTabIndex: 2))),
+            onTap: () {
+              if (widget.onNavigateTab != null) {
+                widget.onNavigateTab!(3);
+              } else {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyActivityAndVitalsScreen(initialTabIndex: 2)));
+              }
+            },
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -919,7 +1007,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   elevation: 0,
                 ),
-                onPressed: () => widget.onNavigateTab != null ? widget.onNavigateTab!(1) : Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkoutScreen())),
+                onPressed: () {
+                  if (widget.onNavigateTab != null) {
+                    widget.onNavigateTab!(1);
+                  } else {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkoutScreen()));
+                  }
+                },
                 child: const Text('START WORKOUT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
               ),
             ],
@@ -979,7 +1073,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   elevation: 0,
                 ),
-                onPressed: () => widget.onNavigateTab != null ? widget.onNavigateTab!(2) : Navigator.push(context, MaterialPageRoute(builder: (_) => const FoodTrackingScreen())),
+                onPressed: () {
+                  if (widget.onNavigateTab != null) {
+                    widget.onNavigateTab!(2);
+                  } else {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const FoodTrackingScreen()));
+                  }
+                },
                 child: const Text('TRACK FOOD', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
               ),
             ],
@@ -1038,7 +1138,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   elevation: 0,
                 ),
-                onPressed: () => widget.onNavigateTab != null ? widget.onNavigateTab!(3) : Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseScreen())),
+                onPressed: () {
+                  if (widget.onNavigateTab != null) {
+                    widget.onNavigateTab!(5);
+                  } else {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseScreen()));
+                  }
+                },
                 child: const Text('VIEW FINANCE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
               ),
             ],
@@ -1108,7 +1214,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   elevation: 0,
                 ),
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyAndEnglishScreen())),
+                onPressed: () {
+                  if (widget.onNavigateTab != null) {
+                    widget.onNavigateTab!(6);
+                  } else {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyAndEnglishScreen()));
+                  }
+                },
                 child: const Text('START STUDY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
               ),
             ],
