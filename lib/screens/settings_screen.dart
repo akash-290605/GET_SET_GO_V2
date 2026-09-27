@@ -8,6 +8,8 @@ import '../services/theme_service.dart';
 import '../services/workout_service.dart';
 import '../models/food_models.dart';
 import '../widgets/account_cloud_modal.dart';
+import '../widgets/body_photo_modal.dart';
+import '../widgets/weekly_report_modal.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -51,6 +53,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               // 1. Account & Profile Header Card
               _buildProfileCard(user, profile, isDark, profileService),
+              const SizedBox(height: 18),
+
+              // 1.5 Strict Goal & Telemetry Settings
+              _buildSectionHeader('STRICT GOALS & TELEMETRY PROTOCOL'),
+              _buildStrictGoalsCard(profile, profileService, isDark),
               const SizedBox(height: 18),
 
               // 2. Appearance Section
@@ -136,6 +143,296 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  // 1.5 Strict Goals & Telemetry Card
+  Widget _buildStrictGoalsCard(UserProfile profile, ProfileService profileService, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF161B22) : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: profile.isStrictMode
+              ? ThemeService.primaryCyan.withValues(alpha: 0.4)
+              : (isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0)),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: ThemeService.primaryCyan.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.shield_outlined, color: ThemeService.primaryCyan, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text(
+                          'Strict Goal Protocol',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        const SizedBox(width: 8),
+                        if (profile.isStrictMode)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: ThemeService.primaryCyan.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'STRICT ACTIVE',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                                color: ThemeService.primaryCyan,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      profile.strictGoalTitle,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: profile.isStrictMode,
+                activeTrackColor: ThemeService.primaryCyan,
+                onChanged: (val) {
+                  profileService.updateStrictGoal(isStrictMode: val);
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Daily Step Target', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${profile.dailyStepTarget} steps',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: ThemeService.primaryCyan),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Daily Active Target', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${profile.dailyActiveTimeMinutesTarget} mins',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orangeAccent),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Current BMI', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${profile.bmi.toStringAsFixed(1)} (${profile.bmiCategory})',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: ThemeService.primaryEmerald),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => _showStrictGoalEditor(context, profileService),
+                icon: const Icon(Icons.tune, size: 14),
+                label: const Text('Edit Targets & Goal', style: TextStyle(fontSize: 12)),
+                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => WeeklyReportModal.show(context),
+                icon: const Icon(Icons.analytics_outlined, size: 14, color: ThemeService.primaryCyan),
+                label: const Text('Weekly BMI Report', style: TextStyle(fontSize: 12, color: ThemeService.primaryCyan)),
+                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => BodyPhotoModal.show(context),
+                icon: const Icon(Icons.camera_alt_outlined, size: 14, color: ThemeService.primaryEmerald),
+                label: Text('Body Photos (${profile.bodyPhotos.length})', style: const TextStyle(fontSize: 12, color: ThemeService.primaryEmerald)),
+                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showStrictGoalEditor(BuildContext context, ProfileService profileService) {
+    final p = profileService.profile;
+    final titleCtrl = TextEditingController(text: p.strictGoalTitle);
+    final stepCtrl = TextEditingController(text: p.dailyStepTarget.toString());
+    final activeCtrl = TextEditingController(text: p.dailyActiveTimeMinutesTarget.toString());
+    bool isStrict = p.isStrictMode;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              ),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF161B22) : Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Strict Goal & Telemetry Target',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 20),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: titleCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Strict Goal Heading Banner',
+                        hintText: 'e.g. Strict 10,000 Steps & Lean Hypertrophy Protocol',
+                        prefixIcon: Icon(Icons.flag_outlined),
+                      ),
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: stepCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Daily Step Target',
+                              prefixIcon: Icon(Icons.directions_walk_rounded),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: activeCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Active Time (Mins)',
+                              prefixIcon: Icon(Icons.timer_outlined),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Enforce Strict Mode Protocol', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('Highlight strict discipline banners and target compliance badges', style: TextStyle(fontSize: 12)),
+                      value: isStrict,
+                      activeTrackColor: ThemeService.primaryCyan,
+                      onChanged: (val) => setModalState(() => isStrict = val),
+                    ),
+                    const SizedBox(height: 18),
+                    ElevatedButton(
+                      onPressed: () {
+                        final st = int.tryParse(stepCtrl.text.trim()) ?? p.dailyStepTarget;
+                        final at = int.tryParse(activeCtrl.text.trim()) ?? p.dailyActiveTimeMinutesTarget;
+                        profileService.updateStrictGoal(
+                          strictGoalTitle: titleCtrl.text.trim().isNotEmpty ? titleCtrl.text.trim() : p.strictGoalTitle,
+                          dailyStepTarget: st,
+                          dailyActiveTimeMinutesTarget: at,
+                          isStrictMode: isStrict,
+                        );
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Strict Goal Protocol updated successfully!')),
+                        );
+                      },
+                      child: const Text('Save Strict Goal Protocol'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/workout_service.dart';
+import '../services/profile_service.dart';
 import '../services/theme_service.dart';
 import '../models/workout_models.dart';
 import '../widgets/titan_ai_sheet.dart';
+import '../widgets/body_photo_modal.dart';
+import '../widgets/weekly_report_modal.dart';
 
 class WorkoutPlannerScreen extends StatefulWidget {
   const WorkoutPlannerScreen({super.key});
@@ -26,10 +29,12 @@ class _WorkoutPlannerScreenState extends State<WorkoutPlannerScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final workoutService = WorkoutService.instance;
+    final profileService = ProfileService.instance;
 
     return AnimatedBuilder(
-      animation: workoutService,
+      animation: Listenable.merge([workoutService, profileService]),
       builder: (context, _) {
+        final profile = profileService.profile;
         final plan = workoutService.plans[_selectedDay] ??
             DayWorkoutPlan(
               id: 'new_$_selectedDay',
@@ -43,6 +48,16 @@ class _WorkoutPlannerScreenState extends State<WorkoutPlannerScreen> {
           appBar: AppBar(
             title: const Text('7-Day Workout Planner'),
             actions: [
+              IconButton(
+                icon: const Icon(Icons.assessment_outlined),
+                tooltip: 'Weekly BMI Report',
+                onPressed: () => WeeklyReportModal.show(context),
+              ),
+              IconButton(
+                icon: const Icon(Icons.camera_alt_outlined),
+                tooltip: 'Body Photo Log',
+                onPressed: () => BodyPhotoModal.show(context),
+              ),
               IconButton(
                 icon: const Icon(Icons.copy_rounded),
                 tooltip: 'Duplicate to another day',
@@ -70,6 +85,10 @@ class _WorkoutPlannerScreenState extends State<WorkoutPlannerScreen> {
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   children: [
+                    // Strict Goal & Telemetry Bar
+                    _buildStrictWorkoutTelemetryHeader(context, profile, profileService, isDark),
+                    const SizedBox(height: 14),
+
                     // Day Overview Card
                     _buildDayHeaderCard(plan, isDark),
                     const SizedBox(height: 16),
@@ -225,6 +244,172 @@ class _WorkoutPlannerScreenState extends State<WorkoutPlannerScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  // 1.5 Strict Goal & Live Telemetry Bar in Workout Planner
+  Widget _buildStrictWorkoutTelemetryHeader(
+    BuildContext context,
+    UserProfile profile,
+    ProfileService profileService,
+    bool isDark,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF161B22) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF6366F1).withValues(alpha: isDark ? 0.35 : 0.45),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.track_changes_rounded, size: 16, color: Color(0xFF818CF8)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  profile.strictGoalTitle,
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: profile.isStrictMode
+                      ? Colors.redAccent.withValues(alpha: 0.15)
+                      : Colors.grey.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  profile.isStrictMode ? 'STRICT' : 'STANDARD',
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w900,
+                    color: profile.isStrictMode ? Colors.redAccent : Colors.grey,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              // Steps counter
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Steps Today', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                          Text(
+                            '${profile.todaySteps} / ${profile.dailyStepTarget}',
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ThemeService.primaryEmerald),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          InkWell(
+                            onTap: () => profileService.addSteps(500),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: ThemeService.primaryEmerald.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text('+500', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: ThemeService.primaryEmerald)),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          InkWell(
+                            onTap: () => profileService.addSteps(1000),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: ThemeService.primaryEmerald.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text('+1k', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: ThemeService.primaryEmerald)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Active Time counter
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Active Time', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                          Text(
+                            '${profile.todayActiveTimeMinutes} / ${profile.dailyActiveTimeMinutesTarget}m',
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ThemeService.primaryCyan),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          InkWell(
+                            onTap: () => profileService.addActiveTime(15),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: ThemeService.primaryCyan.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text('+15m', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: ThemeService.primaryCyan)),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          InkWell(
+                            onTap: () => profileService.addActiveTime(30),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: ThemeService.primaryCyan.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text('+30m', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: ThemeService.primaryCyan)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
