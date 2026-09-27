@@ -3,6 +3,10 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'models/workout_template_models.dart';
 import 'models/food_models.dart';
+import 'models/body_photo_model.dart';
+import 'models/physique_measurement_model.dart';
+import 'models/weight_entry_model.dart';
+import 'models/workout_history_model.dart';
 
 class DBHelper {
   static final DBHelper instance = DBHelper._init();
@@ -15,6 +19,10 @@ class DBHelper {
   final List<Map<String, dynamic>> _inMemoryFood = [];
   final List<Map<String, dynamic>> _inMemoryMeals = [];
   final Map<String, Map<String, dynamic>> _inMemoryWorkouts = {};
+  final List<Map<String, dynamic>> _inMemoryBodyPhotos = [];
+  final List<Map<String, dynamic>> _inMemoryPhysique = [];
+  final List<Map<String, dynamic>> _inMemoryWeeklyWeights = [];
+  final List<Map<String, dynamic>> _inMemoryWorkoutLogs = [];
 
   DBHelper._init();
 
@@ -38,7 +46,7 @@ class DBHelper {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _createDB,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 3) {
@@ -70,6 +78,60 @@ class DBHelper {
                 status TEXT NOT NULL,
                 exercisesJson TEXT NOT NULL,
                 notes TEXT
+              )
+            ''');
+          } catch (_) {}
+        }
+        if (oldVersion < 4) {
+          try {
+            await db.execute('''
+              CREATE TABLE IF NOT EXISTS body_photos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                time TEXT NOT NULL,
+                photoBase64 TEXT,
+                photoPath TEXT,
+                weightKg REAL,
+                note TEXT
+              )
+            ''');
+            await db.execute('''
+              CREATE TABLE IF NOT EXISTS physique_measurements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                unit TEXT NOT NULL,
+                chest REAL,
+                waist REAL,
+                abdomen REAL,
+                hip REAL,
+                neck REAL,
+                leftArm REAL,
+                rightArm REAL,
+                leftThigh REAL,
+                rightThigh REAL,
+                comment TEXT
+              )
+            ''');
+            await db.execute('''
+              CREATE TABLE IF NOT EXISTS weekly_weight_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                weekKey TEXT NOT NULL,
+                weightKg REAL NOT NULL,
+                comment TEXT
+              )
+            ''');
+            await db.execute('''
+              CREATE TABLE IF NOT EXISTS workout_history_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                dayName TEXT NOT NULL,
+                workoutName TEXT NOT NULL,
+                completedExercisesCount INTEGER NOT NULL,
+                totalExercisesCount INTEGER NOT NULL,
+                durationMinutes INTEGER NOT NULL,
+                notes TEXT,
+                completedAt TEXT NOT NULL
               )
             ''');
           } catch (_) {}
@@ -168,6 +230,56 @@ class DBHelper {
         status TEXT NOT NULL,
         exercisesJson TEXT NOT NULL,
         notes TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE body_photos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        time TEXT NOT NULL,
+        photoBase64 TEXT,
+        photoPath TEXT,
+        weightKg REAL,
+        note TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE physique_measurements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        unit TEXT NOT NULL,
+        chest REAL,
+        waist REAL,
+        abdomen REAL,
+        hip REAL,
+        neck REAL,
+        leftArm REAL,
+        rightArm REAL,
+        leftThigh REAL,
+        rightThigh REAL,
+        comment TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE weekly_weight_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        weekKey TEXT NOT NULL,
+        weightKg REAL NOT NULL,
+        comment TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE workout_history_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        dayName TEXT NOT NULL,
+        workoutName TEXT NOT NULL,
+        completedExercisesCount INTEGER NOT NULL,
+        totalExercisesCount INTEGER NOT NULL,
+        durationMinutes INTEGER NOT NULL,
+        notes TEXT,
+        completedAt TEXT NOT NULL
       )
     ''');
   }
@@ -440,11 +552,147 @@ class DBHelper {
     }
 
     final list = maps.map((e) => WorkoutDayPlan.fromMap(e)).toList();
-    // Sort in Monday-Sunday order
     const order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     list.sort((a, b) => order.indexOf(a.dayName).compareTo(order.indexOf(b.dayName)));
     return list;
   }
 
   Future<List<WorkoutDayPlan>> getWorkoutPlans() => fetchWorkoutPlans();
+
+  // --- BODY PHOTOS CRUD ---
+  Future<int> insertBodyPhoto(BodyPhotoEntry photo) async {
+    final map = photo.toMap();
+    final db = await database;
+    if (db == null) {
+      final newId = _inMemoryBodyPhotos.length + 1;
+      map['id'] = newId;
+      _inMemoryBodyPhotos.insert(0, map);
+      return newId;
+    }
+    return await db.insert('body_photos', map);
+  }
+
+  Future<List<BodyPhotoEntry>> fetchBodyPhotos() async {
+    final db = await database;
+    List<Map<String, dynamic>> maps;
+    if (db == null) {
+      maps = List.from(_inMemoryBodyPhotos);
+    } else {
+      maps = await db.query('body_photos', orderBy: 'date DESC, id DESC');
+    }
+    return maps.map((e) => BodyPhotoEntry.fromMap(e)).toList();
+  }
+
+  Future<void> updateBodyPhotoNote(int id, String note) async {
+    final db = await database;
+    if (db == null) {
+      final idx = _inMemoryBodyPhotos.indexWhere((e) => e['id'] == id);
+      if (idx != -1) {
+        _inMemoryBodyPhotos[idx]['note'] = note;
+      }
+      return;
+    }
+    await db.update('body_photos', {'note': note}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> deleteBodyPhoto(int id) async {
+    final db = await database;
+    if (db == null) {
+      _inMemoryBodyPhotos.removeWhere((e) => e['id'] == id);
+      return;
+    }
+    await db.delete('body_photos', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // --- PHYSIQUE MEASUREMENTS CRUD ---
+  Future<int> insertPhysiqueMeasurement(PhysiqueMeasurement pm) async {
+    final map = pm.toMap();
+    final db = await database;
+    if (db == null) {
+      final newId = _inMemoryPhysique.length + 1;
+      map['id'] = newId;
+      _inMemoryPhysique.insert(0, map);
+      return newId;
+    }
+    return await db.insert('physique_measurements', map);
+  }
+
+  Future<List<PhysiqueMeasurement>> fetchPhysiqueMeasurements() async {
+    final db = await database;
+    List<Map<String, dynamic>> maps;
+    if (db == null) {
+      maps = List.from(_inMemoryPhysique);
+    } else {
+      maps = await db.query('physique_measurements', orderBy: 'date DESC, id DESC');
+    }
+    return maps.map((e) => PhysiqueMeasurement.fromMap(e)).toList();
+  }
+
+  Future<void> deletePhysiqueMeasurement(int id) async {
+    final db = await database;
+    if (db == null) {
+      _inMemoryPhysique.removeWhere((e) => e['id'] == id);
+      return;
+    }
+    await db.delete('physique_measurements', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // --- WEEKLY WEIGHT CHECK-INS CRUD ---
+  Future<int> insertWeeklyWeight(WeeklyWeightEntry entry) async {
+    final map = entry.toMap();
+    final db = await database;
+    if (db == null) {
+      _inMemoryWeeklyWeights.removeWhere((e) => e['weekKey'] == entry.weekKey);
+      final newId = _inMemoryWeeklyWeights.length + 1;
+      map['id'] = newId;
+      _inMemoryWeeklyWeights.insert(0, map);
+      return newId;
+    }
+    await db.delete('weekly_weight_entries', where: 'weekKey = ?', whereArgs: [entry.weekKey]);
+    return await db.insert('weekly_weight_entries', map);
+  }
+
+  Future<List<WeeklyWeightEntry>> fetchWeeklyWeights() async {
+    final db = await database;
+    List<Map<String, dynamic>> maps;
+    if (db == null) {
+      maps = List.from(_inMemoryWeeklyWeights);
+    } else {
+      maps = await db.query('weekly_weight_entries', orderBy: 'date DESC, id DESC');
+    }
+    return maps.map((e) => WeeklyWeightEntry.fromMap(e)).toList();
+  }
+
+  Future<void> deleteWeeklyWeight(int id) async {
+    final db = await database;
+    if (db == null) {
+      _inMemoryWeeklyWeights.removeWhere((e) => e['id'] == id);
+      return;
+    }
+    await db.delete('weekly_weight_entries', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // --- WORKOUT HISTORY LOGS CRUD ---
+  Future<int> insertWorkoutHistoryLog(WorkoutHistoryLog log) async {
+    final map = log.toMap();
+    final db = await database;
+    if (db == null) {
+      final newId = _inMemoryWorkoutLogs.length + 1;
+      map['id'] = newId;
+      _inMemoryWorkoutLogs.insert(0, map);
+      return newId;
+    }
+    return await db.insert('workout_history_logs', map);
+  }
+
+  Future<List<WorkoutHistoryLog>> fetchWorkoutHistoryLogs() async {
+    final db = await database;
+    List<Map<String, dynamic>> maps;
+    if (db == null) {
+      maps = List.from(_inMemoryWorkoutLogs);
+    } else {
+      maps = await db.query('workout_history_logs', orderBy: 'date DESC, id DESC');
+    }
+    return maps.map((e) => WorkoutHistoryLog.fromMap(e)).toList();
+  }
 }

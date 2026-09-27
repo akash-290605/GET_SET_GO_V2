@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/food_models.dart';
 
@@ -17,6 +17,7 @@ class ProfileService extends ChangeNotifier {
   set userName(String v) => name = v;
 
   int age = 24;
+  String gender = 'Male';
   double heightCm = 175.0;
   double weightKg = 72.5;
   double targetWeightKg = 70.0;
@@ -57,6 +58,83 @@ class ProfileService extends ChangeNotifier {
   // Dashboard Card Customization
   List<String> dashboardWidgetsOrder = ['fitness', 'nutrition', 'finance'];
 
+  // --- BMI CALCULATOR & SCREENING CATEGORIES ---
+  double get bmi {
+    if (heightCm <= 0) return 0.0;
+    final heightM = heightCm / 100.0;
+    return double.parse((weightKg / (heightM * heightM)).toStringAsFixed(1));
+  }
+
+  String get bmiCategory {
+    final value = bmi;
+    if (value < 18.5) return 'Underweight';
+    if (value < 25.0) return 'Normal weight';
+    if (value < 30.0) return 'Overweight';
+    return 'Obesity';
+  }
+
+  Color get bmiCategoryColor {
+    final value = bmi;
+    if (value < 18.5) return const Color(0xFF06B6D4);
+    if (value < 25.0) return const Color(0xFF16A34A);
+    if (value < 30.0) return const Color(0xFFF59E0B);
+    return const Color(0xFFDC2626);
+  }
+
+  String get bmiAdvice {
+    final value = bmi;
+    if (value < 18.5) return 'Slightly below recommended range. Aim for nutrient-dense caloric surplus and progressive resistance training.';
+    if (value < 25.0) return 'Healthy BMI range. Maintain balanced nutrition, adequate hydration, and consistent weekly physical activity.';
+    if (value < 30.0) return 'Moderate elevation above standard baseline. Focus on slight caloric deficit, daily steps, and resistance training.';
+    return 'Above standard adult range. Prioritize steady caloric deficit, cardiovascular conditioning, and consultation with a healthcare provider.';
+  }
+
+  // --- MIFFLIN-ST JEOR ESTIMATED TARGETS ---
+  double get estimatedBmr {
+    if (gender == 'Female') {
+      return (10 * weightKg) + (6.25 * heightCm) - (5 * age) - 161;
+    }
+    return (10 * weightKg) + (6.25 * heightCm) - (5 * age) + 5;
+  }
+
+  double get activityMultiplier {
+    if (activityLevel.contains('Sedentary')) return 1.2;
+    if (activityLevel.contains('Lightly')) return 1.375;
+    if (activityLevel.contains('Moderately')) return 1.55;
+    if (activityLevel.contains('Very')) return 1.725;
+    return 1.55;
+  }
+
+  double get estimatedTdee => estimatedBmr * activityMultiplier;
+
+  double get estimatedTargetCalories {
+    final tdee = estimatedTdee;
+    if (fitnessGoal.contains('Loss') || fitnessGoal.contains('Fat')) {
+      return (tdee - 500).clamp(1200.0, 5000.0).roundToDouble();
+    }
+    if (fitnessGoal.contains('Gain') || fitnessGoal.contains('Hypertrophy') || fitnessGoal.contains('Muscle')) {
+      return (tdee + 350).clamp(1200.0, 5000.0).roundToDouble();
+    }
+    return tdee.clamp(1200.0, 5000.0).roundToDouble();
+  }
+
+  Map<String, double> get estimatedMacros {
+    final targetCals = estimatedTargetCalories;
+    final proteinGrams = (weightKg * 2.0).clamp(80.0, 260.0).roundToDouble();
+    final proteinCals = proteinGrams * 4.0;
+    final fatCals = targetCals * 0.25;
+    final fatGrams = (fatCals / 9.0).clamp(35.0, 120.0).roundToDouble();
+    final carbCals = (targetCals - proteinCals - (fatGrams * 9.0)).clamp(0.0, targetCals);
+    final carbGrams = (carbCals / 4.0).clamp(50.0, 600.0).roundToDouble();
+
+    return {
+      'calories': targetCals,
+      'protein': proteinGrams,
+      'carbs': carbGrams,
+      'fat': fatGrams,
+    };
+  }
+
   Future<void> init() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -65,6 +143,7 @@ class ProfileService extends ChangeNotifier {
         final map = json.decode(profileStr) as Map<String, dynamic>;
         name = map['name'] ?? name;
         age = (map['age'] as num?)?.toInt() ?? age;
+        gender = map['gender'] ?? gender;
         heightCm = (map['heightCm'] as num?)?.toDouble() ?? heightCm;
         weightKg = (map['weightKg'] as num?)?.toDouble() ?? weightKg;
         targetWeightKg = (map['targetWeightKg'] as num?)?.toDouble() ?? targetWeightKg;
@@ -119,6 +198,7 @@ class ProfileService extends ChangeNotifier {
   Future<void> updateProfile({
     String? name,
     int? age,
+    String? gender,
     double? heightCm,
     double? weightKg,
     double? targetWeightKg,
@@ -129,6 +209,7 @@ class ProfileService extends ChangeNotifier {
   }) async {
     if (name != null) this.name = name;
     if (age != null) this.age = age;
+    if (gender != null) this.gender = gender;
     if (heightCm != null) this.heightCm = heightCm;
     if (weightKg != null) {
       this.weightKg = weightKg;
@@ -255,6 +336,7 @@ class ProfileService extends ChangeNotifier {
       final map = {
         'name': name,
         'age': age,
+        'gender': gender,
         'heightCm': heightCm,
         'weightKg': weightKg,
         'targetWeightKg': targetWeightKg,
