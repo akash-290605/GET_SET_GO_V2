@@ -331,7 +331,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                   TextButton(
                     onPressed: () async {
                       await AuthService.instance.continueAsGuest();
-                      if (mounted) Navigator.pop(context);
+                      if (context.mounted) Navigator.pop(context);
                     },
                     child: Text('Continue as Guest (Local Offline Mode)', style: TextStyle(color: theme.hintColor, fontSize: 12.5)),
                   ),

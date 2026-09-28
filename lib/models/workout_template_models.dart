@@ -167,7 +167,7 @@ class WorkoutTemplateModels {
       } else {
         // Increase weight by 2.5 kg and reset reps to 8-10
         final nextWeight = curWeight + 2.5;
-        final nextReps = 8;
+        const nextReps = 8;
         return ProgressionSuggestion(
           exerciseName: current.name,
           currentReps: curReps,
