@@ -1,44 +1,75 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../db_helper.dart';
 import '../models/workout_template_models.dart';
+import '../services/auth_service.dart';
 import '../services/theme_service.dart';
 import '../widgets/glass_card.dart';
 
 class WorkoutScreen extends StatefulWidget {
-  const WorkoutScreen({super.key});
+  final int initialTabIndex;
+  const WorkoutScreen({super.key, this.initialTabIndex = 0});
 
   @override
   State<WorkoutScreen> createState() => _WorkoutScreenState();
 }
 
 class _WorkoutScreenState extends State<WorkoutScreen> with SingleTickerProviderStateMixin {
-  late TabController _dayTabController;
-  final List<String> _days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  late TabController _mainTabController;
+  final List<String> _days = const ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   
   Map<String, WorkoutDayPlan> _workoutPlans = {};
+  List<WorkoutSession> _historySessions = [];
+  Map<String, PersonalRecord> _personalRecords = {};
   bool _isLoading = true;
+
+  // Builder selected day (0 = Monday, 6 = Sunday)
+  int _selectedBuilderDayIndex = 0;
+
+  // Live Workout Session State
+  bool _isLiveSessionActive = false;
+  DateTime? _liveSessionStartTime;
+  Timer? _stopwatchTimer;
+  int _elapsedSeconds = 0;
+  WorkoutDayPlan? _activeLivePlan;
+  List<ExerciseDetail> _activeLiveExercises = [];
+  final Map<String, List<WorkoutSetRecord>> _liveSetRecords = {}; // exerciseId -> List<WorkoutSetRecord>
+
+  // Rest Timer State
+  Timer? _restCountdownTimer;
+  int _restSecondsRemaining = 0;
+  int _restTotalSeconds = 60;
+  bool _isRestTimerRunning = false;
+  String _currentRestingExercise = '';
 
   @override
   void initState() {
     super.initState();
-    // Default to today's weekday (1 = Monday, 7 = Sunday)
     final todayWeekday = (DateTime.now().weekday - 1).clamp(0, 6);
-    _dayTabController = TabController(
-      length: _days.length,
-      initialIndex: todayWeekday,
-      vsync: this,
-    );
-    _loadWorkoutPlans();
+    _selectedBuilderDayIndex = todayWeekday;
+    _mainTabController = TabController(length: 4, initialIndex: widget.initialTabIndex, vsync: this);
+    _loadAllWorkoutData();
   }
 
   @override
   void dispose() {
-    _dayTabController.dispose();
+    _stopwatchTimer?.cancel();
+    _restCountdownTimer?.cancel();
+    _mainTabController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadWorkoutPlans() async {
+  String get _currentDayName {
+    final weekday = (DateTime.now().weekday - 1).clamp(0, 6);
+    return _days[weekday];
+  }
+
+  String get _formattedTodayDate {
+    return DateFormat('EEEE, d MMMM yyyy').format(DateTime.now());
+  }
+
+  Future<void> _loadAllWorkoutData() async {
     setState(() => _isLoading = true);
     try {
       final plans = await DBHelper.instance.getWorkoutPlans();
@@ -52,16 +83,26 @@ class _WorkoutScreenState extends State<WorkoutScreen> with SingleTickerProvider
       } else {
         _workoutPlans = {for (var p in plans) p.dayName: p};
       }
-      if (mounted) setState(() => _isLoading = false);
+
+      final sessions = await DBHelper.instance.getWorkoutSessions();
+      final prs = await DBHelper.instance.getPersonalRecords();
+
+      if (mounted) {
+        setState(() {
+          _historySessions = sessions;
+          _personalRecords = prs;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  WorkoutDayPlan _getCurrentDayPlan(String dayName) {
+  WorkoutDayPlan _getDayPlan(String dayName) {
     return _workoutPlans[dayName] ??
         WorkoutDayPlan(
-          id: 'custom_$dayName',
+          id: 'plan_${dayName.toLowerCase()}',
           dayName: dayName,
           workoutName: '$dayName Workout',
           muscleGroup: 'Full Body',
@@ -72,798 +113,96 @@ class _WorkoutScreenState extends State<WorkoutScreen> with SingleTickerProvider
         );
   }
 
-  Future<void> _updateDayStatus(String dayName, WorkoutStatus newStatus) async {
-    final current = _getCurrentDayPlan(dayName);
-    final updated = current.copyWith(
-      status: newStatus,
-      completedAt: newStatus == WorkoutStatus.completed ? DateTime.now() : null,
-    );
-    setState(() {
-      _workoutPlans[dayName] = updated;
-    });
-    await DBHelper.instance.saveWorkoutPlan(updated);
-
-    if (newStatus == WorkoutStatus.completed && mounted) {
+  // ================= LIVE WORKOUT EXECUTION =================
+  void _startLiveWorkout(WorkoutDayPlan plan) {
+    if (plan.isRestDay || plan.exercises.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('🎉 Awesome job! $dayName workout marked as Completed!'),
-          backgroundColor: AppColors.accentGreen,
+        const SnackBar(
+          content: Text('Today is a scheduled Rest Day! Enjoy your recovery.'),
+          backgroundColor: AppColors.secondary,
           behavior: SnackBarBehavior.floating,
         ),
       );
+      return;
     }
-  }
 
-  void _openExerciseDetailModal(ExerciseDetail exercise, String dayName, int exerciseIndex) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _ExerciseDetailSheet(
-        exercise: exercise,
-        onSave: (updatedExercise) async {
-          final plan = _getCurrentDayPlan(dayName);
-          final updatedExercises = List<ExerciseDetail>.from(plan.exercises);
-          updatedExercises[exerciseIndex] = updatedExercise;
-          final updatedPlan = plan.copyWith(exercises: updatedExercises);
-          setState(() {
-            _workoutPlans[dayName] = updatedPlan;
-          });
-          await DBHelper.instance.saveWorkoutPlan(updatedPlan);
-        },
-      ),
-    );
-  }
-
-  void _editWorkoutHeaderDialog(String dayName) {
-    final plan = _getCurrentDayPlan(dayName);
-    final nameCtrl = TextEditingController(text: plan.workoutName);
-    final muscleCtrl = TextEditingController(text: plan.muscleGroup);
-    final durationCtrl = TextEditingController(text: plan.estimatedDurationMinutes.toString());
-    String difficulty = plan.difficulty;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDlgState) => AlertDialog(
-          backgroundColor: Theme.of(context).cardColor,
-          title: Text('Edit $dayName Workout', style: const TextStyle(fontWeight: FontWeight.bold)),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: 'Workout Title (e.g. Push Power)', border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: muscleCtrl,
-                  decoration: const InputDecoration(labelText: 'Target Muscle Group (e.g. Chest & Triceps)', border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: durationCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Estimated Duration (Minutes)', border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: difficulty,
-                  decoration: const InputDecoration(labelText: 'Difficulty', border: OutlineInputBorder()),
-                  items: ['Beginner', 'Intermediate', 'Advanced'].map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
-                  onChanged: (val) {
-                    if (val != null) setDlgState(() => difficulty = val);
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-              onPressed: () async {
-                final updated = plan.copyWith(
-                  workoutName: nameCtrl.text.trim().isEmpty ? plan.workoutName : nameCtrl.text.trim(),
-                  muscleGroup: muscleCtrl.text.trim().isEmpty ? plan.muscleGroup : muscleCtrl.text.trim(),
-                  estimatedDurationMinutes: int.tryParse(durationCtrl.text) ?? plan.estimatedDurationMinutes,
-                  difficulty: difficulty,
-                );
-                setState(() {
-                  _workoutPlans[dayName] = updated;
-                });
-                await DBHelper.instance.saveWorkoutPlan(updated);
-                if (ctx.mounted) Navigator.pop(ctx);
-              },
-              child: const Text('Save Changes', style: TextStyle(color: Colors.white)),
-            ),
-          ],
+    // Initialize actual set records for each exercise
+    _liveSetRecords.clear();
+    for (final ex in plan.exercises) {
+      _liveSetRecords[ex.id] = List.generate(
+        ex.sets,
+        (idx) => WorkoutSetRecord(
+          setNumber: idx + 1,
+          reps: ex.reps,
+          weightKg: ex.weightKg,
+          durationSeconds: ex.targetDurationSeconds,
+          isCompleted: false,
+          isBodyweight: ex.isBodyweight,
+          isTimeBased: ex.isTimeBased,
         ),
-      ),
-    );
-  }
-
-  void _addExerciseDialog(String dayName) {
-    final nameCtrl = TextEditingController();
-    final muscleCtrl = TextEditingController();
-    final equipCtrl = TextEditingController(text: 'Dumbbells / Barbell');
-    final setsCtrl = TextEditingController(text: '3');
-    final repsCtrl = TextEditingController(text: '10');
-    final weightCtrl = TextEditingController(text: '20');
-    final restCtrl = TextEditingController(text: '60');
-    final instructionsCtrl = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Theme.of(context).cardColor,
-        title: const Text('Add Exercise', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'Exercise Name (e.g. Incline Bench Press)', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: muscleCtrl,
-                decoration: const InputDecoration(labelText: 'Target Muscle (e.g. Upper Chest)', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: equipCtrl,
-                decoration: const InputDecoration(labelText: 'Equipment (e.g. Dumbbells / Bodyweight)', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: setsCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Sets', border: OutlineInputBorder()),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: repsCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Reps', border: OutlineInputBorder()),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: weightCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Weight (kg)', border: OutlineInputBorder()),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: restCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Rest (sec)', border: OutlineInputBorder()),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: instructionsCtrl,
-                maxLines: 2,
-                decoration: const InputDecoration(labelText: 'Form instructions & cues', border: OutlineInputBorder()),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-            onPressed: () async {
-              final name = nameCtrl.text.trim();
-              if (name.isEmpty) return;
-
-              final plan = _getCurrentDayPlan(dayName);
-              final newExercise = ExerciseDetail(
-                id: 'ex_${DateTime.now().millisecondsSinceEpoch}',
-                name: name,
-                targetMuscle: muscleCtrl.text.trim().isEmpty ? 'General' : muscleCtrl.text.trim(),
-                equipment: equipCtrl.text.trim(),
-                sets: int.tryParse(setsCtrl.text) ?? 3,
-                reps: int.tryParse(repsCtrl.text) ?? 10,
-                weightKg: double.tryParse(weightCtrl.text) ?? 0,
-                restSeconds: int.tryParse(restCtrl.text) ?? 60,
-                instructions: instructionsCtrl.text.trim().isEmpty ? 'Keep a tight core and focus on controlled contraction.' : instructionsCtrl.text.trim(),
-                photoUrl: WorkoutTemplateModels.getIllustrationForExercise(name),
-              );
-
-              final updatedExercises = List<ExerciseDetail>.from(plan.exercises)..add(newExercise);
-              final updatedPlan = plan.copyWith(exercises: updatedExercises);
-              setState(() {
-                _workoutPlans[dayName] = updatedPlan;
-              });
-              await DBHelper.instance.saveWorkoutPlan(updatedPlan);
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('Add Exercise', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _duplicateWorkoutToAnotherDay(String sourceDay) {
-    String targetDay = _days.firstWhere((d) => d != sourceDay);
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDlgState) => AlertDialog(
-          backgroundColor: Theme.of(context).cardColor,
-          title: Text('Duplicate $sourceDay Workout', style: const TextStyle(fontWeight: FontWeight.bold)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Copy exercises, sets, and configuration from $sourceDay to another day:'),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: targetDay,
-                decoration: const InputDecoration(labelText: 'Target Day', border: OutlineInputBorder()),
-                items: _days.where((d) => d != sourceDay).map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
-                onChanged: (val) {
-                  if (val != null) setDlgState(() => targetDay = val);
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-              onPressed: () async {
-                final sourcePlan = _getCurrentDayPlan(sourceDay);
-                final duplicatedPlan = sourcePlan.copyWith(
-                  id: 'plan_${targetDay.toLowerCase()}',
-                  dayName: targetDay,
-                  workoutName: '${sourcePlan.workoutName} (Copy)',
-                  status: WorkoutStatus.planned,
-                );
-                setState(() {
-                  _workoutPlans[targetDay] = duplicatedPlan;
-                });
-                await DBHelper.instance.saveWorkoutPlan(duplicatedPlan);
-                if (ctx.mounted) {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Copied workout to $targetDay!'), backgroundColor: AppColors.accentGreen),
-                  );
-                }
-              },
-              child: const Text('Duplicate', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _moveWorkoutToAnotherDay(String sourceDay) {
-    String targetDay = _days.firstWhere((d) => d != sourceDay);
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDlgState) => AlertDialog(
-          backgroundColor: Theme.of(context).cardColor,
-          title: Text('Move $sourceDay Workout', style: const TextStyle(fontWeight: FontWeight.bold)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Move this workout to another day (and make $sourceDay a Rest Day):'),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: targetDay,
-                decoration: const InputDecoration(labelText: 'Move To Day', border: OutlineInputBorder()),
-                items: _days.where((d) => d != sourceDay).map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
-                onChanged: (val) {
-                  if (val != null) setDlgState(() => targetDay = val);
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.accentAmber),
-              onPressed: () async {
-                final sourcePlan = _getCurrentDayPlan(sourceDay);
-                final movedPlan = sourcePlan.copyWith(
-                  id: 'plan_${targetDay.toLowerCase()}',
-                  dayName: targetDay,
-                );
-                final emptySource = WorkoutDayPlan(
-                  id: 'plan_${sourceDay.toLowerCase()}',
-                  dayName: sourceDay,
-                  workoutName: 'Rest & Active Recovery',
-                  muscleGroup: 'Rest Day',
-                  status: WorkoutStatus.restDay,
-                  estimatedDurationMinutes: 0,
-                  difficulty: 'Beginner',
-                  exercises: [],
-                );
-
-                setState(() {
-                  _workoutPlans[targetDay] = movedPlan;
-                  _workoutPlans[sourceDay] = emptySource;
-                });
-                await DBHelper.instance.saveWorkoutPlan(movedPlan);
-                await DBHelper.instance.saveWorkoutPlan(emptySource);
-
-                if (ctx.mounted) {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Moved workout from $sourceDay to $targetDay!'), backgroundColor: AppColors.accentGreen),
-                  );
-                }
-              },
-              child: const Text('Move Workout', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final todayWeekday = (DateTime.now().weekday - 1).clamp(0, 6);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('7-Day Workout Planner', style: TextStyle(fontWeight: FontWeight.bold)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Reload Split',
-            onPressed: _loadWorkoutPlans,
-          ),
-        ],
-        bottom: TabBar(
-          controller: _dayTabController,
-          isScrollable: true,
-          indicatorColor: AppColors.primary,
-          indicatorWeight: 3,
-          labelPadding: const EdgeInsets.symmetric(horizontal: 14),
-          tabs: _days.asMap().entries.map((entry) {
-            final idx = entry.key;
-            final day = entry.value;
-            final isToday = idx == todayWeekday;
-
-            return Tab(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    day.substring(0, 3),
-                    style: TextStyle(
-                      fontWeight: isToday ? FontWeight.w900 : FontWeight.w600,
-                      color: isToday ? AppColors.primaryGlow : null,
-                    ),
-                  ),
-                  if (isToday) ...[
-                    const SizedBox(width: 4),
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(color: AppColors.accentGreen, shape: BoxShape.circle),
-                    ),
-                  ],
-                ],
-              ),
-            );
-          }).toList(),
-        ),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-              controller: _dayTabController,
-              children: _days.asMap().entries.map((entry) {
-                final idx = entry.key;
-                final day = entry.value;
-                final isToday = idx == todayWeekday;
-                final plan = _getCurrentDayPlan(day);
-                return _buildDayView(day, plan, isToday);
-              }).toList(),
-            ),
-    );
-  }
-
-  Widget _buildDayView(String dayName, WorkoutDayPlan plan, bool isToday) {
-    final theme = Theme.of(context);
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Today badge & day header card
-          _buildDayHeaderCard(dayName, plan, isToday),
-          const SizedBox(height: 16),
-
-          // Exercise list header with Add Exercise & Reorder
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.fitness_center_rounded, size: 20, color: AppColors.primary),
-                  const SizedBox(width: 8),
-                  Text('Exercises (${plan.exercises.length})', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                ],
-              ),
-              IconButton(
-                icon: const Icon(Icons.add_circle_rounded, color: AppColors.primary),
-                tooltip: 'Add Exercise',
-                onPressed: () => _addExerciseDialog(dayName),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          // Exercises List
-          if (plan.exercises.isEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-              ),
-              child: Column(
-                children: [
-                  Icon(Icons.bedtime_rounded, size: 48, color: theme.hintColor.withValues(alpha: 0.4)),
-                  const SizedBox(height: 12),
-                  Text(
-                    plan.status == WorkoutStatus.restDay ? 'Scheduled Rest & Recovery Day' : 'No exercises planned for $dayName',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: theme.hintColor),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-                    icon: const Icon(Icons.add_rounded, color: Colors.white),
-                    label: const Text('Add an Exercise', style: TextStyle(color: Colors.white)),
-                    onPressed: () => _addExerciseDialog(dayName),
-                  ),
-                ],
-              ),
-            )
-          else
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: plan.exercises.length,
-              itemBuilder: (context, index) {
-                final exercise = plan.exercises[index];
-                return _buildExerciseCard(exercise, dayName, index, ValueKey(exercise.id));
-              },
-            ),
-
-          const SizedBox(height: 24),
-          // Actions bar: Duplicate / Move / Delete
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                  icon: const Icon(Icons.copy_rounded, size: 16),
-                  label: const Text('Duplicate'),
-                  onPressed: () => _duplicateWorkoutToAnotherDay(dayName),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                  icon: const Icon(Icons.move_down_rounded, size: 16),
-                  label: const Text('Move Day'),
-                  onPressed: () => _moveWorkoutToAnotherDay(dayName),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 40),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDayHeaderCard(String dayName, WorkoutDayPlan plan, bool isToday) {
-    final isDark = ThemeService.instance.isDarkMode(context);
-
-    return GlassCard(
-      borderRadius: 20,
-      border: Border.all(
-        color: isToday ? AppColors.primary : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
-        width: isToday ? 2 : 1,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    dayName.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                      color: isToday ? AppColors.primary : AppColors.textSecondary(isDark),
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  if (isToday) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text('TODAY', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 10)),
-                    ),
-                  ],
-                ],
-              ),
-              IconButton(
-                icon: Icon(Icons.edit_note_rounded, size: 22, color: AppColors.textSecondary(isDark)),
-                tooltip: 'Edit Workout Info',
-                onPressed: () => _editWorkoutHeaderDialog(dayName),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            plan.workoutName,
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.textPrimary(isDark)),
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Icon(Icons.bubble_chart_rounded, size: 14, color: AppColors.textSecondary(isDark)),
-              const SizedBox(width: 4),
-              Text(plan.muscleGroup, style: TextStyle(fontSize: 13, color: AppColors.textSecondary(isDark), fontWeight: FontWeight.w600)),
-              const SizedBox(width: 12),
-              Icon(Icons.timer_outlined, size: 14, color: AppColors.textSecondary(isDark)),
-              const SizedBox(width: 4),
-              Text('~${plan.estimatedDurationMinutes} mins', style: TextStyle(fontSize: 13, color: AppColors.textSecondary(isDark), fontWeight: FontWeight.w600)),
-              const SizedBox(width: 12),
-              Icon(Icons.speed_rounded, size: 14, color: AppColors.textSecondary(isDark)),
-              const SizedBox(width: 4),
-              Text(plan.difficulty, style: TextStyle(fontSize: 13, color: AppColors.textSecondary(isDark), fontWeight: FontWeight.w600)),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Divider(height: 1, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
-          const SizedBox(height: 14),
-
-          // Status Selector Chips
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Text('Status: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary(isDark))),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: WorkoutStatus.values.map((st) {
-                      final isSelected = plan.status == st;
-                      final col = WorkoutModels.getStatusColor(st);
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: ChoiceChip(
-                          avatar: isSelected ? const Icon(Icons.check, size: 14, color: Colors.white) : null,
-                          label: Text(WorkoutModels.getStatusLabel(st), style: TextStyle(fontSize: 11.5, color: isSelected ? Colors.white : AppColors.textPrimary(isDark), fontWeight: FontWeight.bold)),
-                          selected: isSelected,
-                          selectedColor: col,
-                          onSelected: (val) {
-                            if (val) _updateDayStatus(dayName, st);
-                          },
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildExerciseCard(ExerciseDetail exercise, String dayName, int index, Key key) {
-    final isDark = ThemeService.instance.isDarkMode(context);
-
-    return GlassCard(
-      key: key,
-      margin: const EdgeInsets.only(bottom: 12),
-      borderRadius: 16,
-      onTap: () => _openExerciseDetailModal(exercise, dayName, index),
-      child: Row(
-        children: [
-          // Exercise illustration / icon thumbnail
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              width: 64,
-              height: 64,
-              color: AppColors.primary.withValues(alpha: isDark ? 0.15 : 0.08),
-              child: Center(
-                child: Text(
-                  exercise.photoUrl,
-                  style: const TextStyle(fontSize: 32),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-
-          // Exercise info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  exercise.name,
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${exercise.targetMuscle} • ${exercise.equipment}',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark)),
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.10),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '${exercise.sets} sets × ${exercise.reps} reps',
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
-                      ),
-                    ),
-                    if (exercise.weightKg > 0) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.accentGreen.withValues(alpha: isDark ? 0.18 : 0.10),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '${exercise.weightKg.toStringAsFixed(0)} kg',
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.accentGreen),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(width: 6),
-                    Text(
-                      '${exercise.restSeconds}s rest',
-                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary(isDark)),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // Delete button
-          IconButton(
-            icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.accentRose),
-            onPressed: () async {
-              final plan = _getCurrentDayPlan(dayName);
-              final updatedExercises = List<ExerciseDetail>.from(plan.exercises)..removeAt(index);
-              final updatedPlan = plan.copyWith(exercises: updatedExercises);
-              setState(() {
-                _workoutPlans[dayName] = updatedPlan;
-              });
-              await DBHelper.instance.saveWorkoutPlan(updatedPlan);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------- EXERCISE DETAIL BOTTOM SHEET WITH INTERACTIVE REST TIMER ----------------
-class _ExerciseDetailSheet extends StatefulWidget {
-  final ExerciseDetail exercise;
-  final Function(ExerciseDetail) onSave;
-
-  const _ExerciseDetailSheet({required this.exercise, required this.onSave});
-
-  @override
-  State<_ExerciseDetailSheet> createState() => _ExerciseDetailSheetState();
-}
-
-class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
-  late ExerciseDetail _ex;
-  Timer? _restTimer;
-  int _secondsRemaining = 0;
-  bool _isTimerActive = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _ex = widget.exercise;
-    if (_ex.completedSets.length != _ex.sets) {
-      _ex = _ex.copyWith(
-        completedSets: List.generate(_ex.sets, (i) => i < _ex.completedSets.length ? _ex.completedSets[i] : false),
       );
     }
-  }
 
-  @override
-  void dispose() {
-    _restTimer?.cancel();
-    super.dispose();
-  }
-
-  void _startRestTimer(int durationSeconds) {
-    _restTimer?.cancel();
     setState(() {
-      _secondsRemaining = durationSeconds;
-      _isTimerActive = true;
+      _isLiveSessionActive = true;
+      _liveSessionStartTime = DateTime.now();
+      _elapsedSeconds = 0;
+      _activeLivePlan = plan;
+      _activeLiveExercises = List<ExerciseDetail>.from(plan.exercises);
     });
 
-    _restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_secondsRemaining > 1) {
-        setState(() => _secondsRemaining--);
+    _stopwatchTimer?.cancel();
+    _stopwatchTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() => _elapsedSeconds++);
+      }
+    });
+  }
+
+  void _pauseResumeStopwatch() {
+    if (_stopwatchTimer != null && _stopwatchTimer!.isActive) {
+      _stopwatchTimer!.cancel();
+      setState(() {});
+    } else {
+      _stopwatchTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() => _elapsedSeconds++);
+      });
+      setState(() {});
+    }
+  }
+
+  String _formatTimerTime(int totalSeconds) {
+    final hours = (totalSeconds ~/ 3600).toString().padLeft(2, '0');
+    final minutes = ((totalSeconds % 3600) ~/ 60).toString().padLeft(2, '0');
+    final seconds = (totalSeconds % 60).toString().padLeft(2, '0');
+    return totalSeconds >= 3600 ? '$hours:$minutes:$seconds' : '$minutes:$seconds';
+  }
+
+  void _startRestCountdown(int seconds, String exerciseName) {
+    _restCountdownTimer?.cancel();
+    setState(() {
+      _restTotalSeconds = seconds > 0 ? seconds : 60;
+      _restSecondsRemaining = _restTotalSeconds;
+      _isRestTimerRunning = true;
+      _currentRestingExercise = exerciseName;
+    });
+
+    _restCountdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_restSecondsRemaining > 1) {
+        if (mounted) setState(() => _restSecondsRemaining--);
       } else {
         timer.cancel();
-        setState(() {
-          _secondsRemaining = 0;
-          _isTimerActive = false;
-        });
         if (mounted) {
+          setState(() {
+            _restSecondsRemaining = 0;
+            _isRestTimerRunning = false;
+          });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('⏱️ Rest timer complete! Ready for your next set!'),
+            SnackBar(
+              content: Text('⚡ Rest time over for $exerciseName! Next set ready!'),
               backgroundColor: AppColors.accentGreen,
               behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 3),
             ),
           );
         }
@@ -871,236 +210,1455 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
     });
   }
 
-  void _pauseRestTimer() {
-    _restTimer?.cancel();
-    setState(() => _isTimerActive = false);
-  }
-
-  void _resetRestTimer() {
-    _restTimer?.cancel();
+  void _cancelRestCountdown() {
+    _restCountdownTimer?.cancel();
     setState(() {
-      _secondsRemaining = 0;
-      _isTimerActive = false;
+      _isRestTimerRunning = false;
+      _restSecondsRemaining = 0;
     });
   }
 
-  void _toggleSetCompletion(int setIndex) {
-    final updated = List<bool>.from(_ex.completedSets);
-    updated[setIndex] = !updated[setIndex];
-    final newEx = _ex.copyWith(completedSets: updated);
-    setState(() => _ex = newEx);
-    widget.onSave(newEx);
+  void _toggleLiveSetCompletion(String exerciseId, int setIndex, int restSec, String exerciseName) {
+    final sets = _liveSetRecords[exerciseId];
+    if (sets == null || setIndex >= sets.length) return;
 
-    if (updated[setIndex]) {
-      _startRestTimer(_ex.restSeconds);
+    final cur = sets[setIndex];
+    final wasCompleted = cur.isCompleted;
+    sets[setIndex] = cur.copyWith(
+      isCompleted: !wasCompleted,
+      completedAt: !wasCompleted ? DateTime.now() : null,
+    );
+
+    setState(() {});
+
+    if (!wasCompleted) {
+      _startRestCountdown(restSec, exerciseName);
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isDark = ThemeService.instance.isDarkMode(context);
-    final theme = Theme.of(context);
+  // Finish Workout & Calculate Progressive Overload Suggestions
+  Future<void> _finishLiveWorkoutPrompt() async {
+    final plan = _activeLivePlan;
+    if (plan == null) return;
 
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.88,
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkBackground : AppColors.lightBackground,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: Column(
-        children: [
-          // Drag handle
-          Center(
-            child: Container(
-              margin: const EdgeInsets.only(top: 12, bottom: 8),
-              width: 44,
-              height: 4,
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                borderRadius: BorderRadius.circular(2),
+    final durationMins = (_elapsedSeconds / 60).ceil().clamp(1, 999);
+    final todayDateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    // Build immutable session record
+    final List<ExerciseSessionRecord> sessionExercises = [];
+    final List<ProgressionSuggestion> suggestions = [];
+
+    for (final ex in _activeLiveExercises) {
+      final actualSets = _liveSetRecords[ex.id] ?? [];
+      final completedSets = actualSets.where((s) => s.isCompleted).toList();
+
+      sessionExercises.add(
+        ExerciseSessionRecord(
+          exerciseId: ex.id,
+          exerciseName: ex.name,
+          targetMuscle: ex.targetMuscle,
+          isBodyweight: ex.isBodyweight,
+          isTimeBased: ex.isTimeBased,
+          plannedSets: ex.sets,
+          plannedReps: ex.reps,
+          plannedWeightKg: ex.weightKg,
+          plannedDurationSeconds: ex.targetDurationSeconds,
+          actualSets: actualSets,
+          notes: ex.notes,
+          previousPerformanceSummary: ex.previousPerformance,
+        ),
+      );
+
+      // Generate Progressive Overload suggestion if sets were completed
+      if (completedSets.isNotEmpty) {
+        final suggestion = WorkoutTemplateModels.calculateProgressionSuggestion(ex);
+        suggestions.add(suggestion);
+      }
+    }
+
+    final session = WorkoutSession(
+      id: 'session_${DateTime.now().millisecondsSinceEpoch}',
+      userId: AuthService.instance.uid,
+      date: todayDateStr,
+      dayName: plan.dayName,
+      workoutTemplateId: plan.id,
+      workoutVersion: plan.version,
+      workoutName: plan.workoutName,
+      muscleGroup: plan.muscleGroup,
+      startTime: _liveSessionStartTime ?? DateTime.now(),
+      endTime: DateTime.now(),
+      durationMinutes: durationMins,
+      exercises: sessionExercises,
+      status: WorkoutStatus.completed,
+      comments: 'Logged live via stopwatch (${_formatTimerTime(_elapsedSeconds)})',
+    );
+
+    // Save immutable session record to DB
+    await DBHelper.instance.saveWorkoutSession(session);
+
+    // Stop timers
+    _stopwatchTimer?.cancel();
+    _restCountdownTimer?.cancel();
+
+    setState(() {
+      _isLiveSessionActive = false;
+      _isRestTimerRunning = false;
+      _workoutPlans[plan.dayName] = plan.copyWith(status: WorkoutStatus.completed, completedAt: DateTime.now());
+    });
+
+    // Update plan status in database
+    await DBHelper.instance.saveWorkoutPlan(_workoutPlans[plan.dayName]!);
+    await _loadAllWorkoutData();
+
+    if (!mounted) return;
+
+    // Show Progressive Overload Acceptance Dialog
+    _showProgressiveOverloadSummaryModal(session, suggestions);
+  }
+
+  void _showProgressiveOverloadSummaryModal(WorkoutSession session, List<ProgressionSuggestion> suggestions) {
+    final isDark = ThemeService.instance.isDarkMode(context);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDlgState) => AlertDialog(
+          backgroundColor: Theme.of(context).cardColor,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.accentGreen.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.emoji_events_rounded, color: AppColors.accentGreen, size: 24),
               ),
-            ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('WORKOUT FINISHED!', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                    Text('Progressive Overload Targets', style: TextStyle(fontSize: 11, color: AppColors.accentAmber, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ],
           ),
-          Expanded(
+          content: SizedBox(
+            width: 480,
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Illustration & Title
-                  Row(
-                    children: [
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: isDark ? 0.15 : 0.08),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Center(
-                          child: Text(_ex.photoUrl, style: const TextStyle(fontSize: 44)),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _ex.name,
-                              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
-                            ),
-                            const SizedBox(height: 4),
-                            Text('Primary: ${_ex.targetMuscle}', style: TextStyle(fontSize: 13, color: AppColors.textSecondary(isDark))),
-                            if (_ex.secondaryMuscles.isNotEmpty)
-                              Text('Secondary: ${_ex.secondaryMuscles}', style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark))),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Rest Timer Widget
-                  GlassCard(
-                    borderRadius: 18,
-                    border: Border.all(
-                      color: _isTimerActive ? AppColors.accentAmber : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: isDark ? 0.15 : 0.08),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
                     ),
                     child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: (_isTimerActive ? AppColors.accentAmber : AppColors.primary).withValues(alpha: 0.18),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            _isTimerActive ? Icons.timer_outlined : Icons.timer_rounded,
-                            color: _isTimerActive ? AppColors.accentAmber : AppColors.primary,
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _isTimerActive ? 'Resting: ${_secondsRemaining}s' : 'Rest Timer (${_ex.restSeconds}s)',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
-                              ),
-                              Text(
-                                _isTimerActive ? 'Take deep breaths & prepare.' : 'Auto-starts after each set',
-                                style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary(isDark)),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (_isTimerActive) ...[
-                          IconButton(
-                            icon: Icon(Icons.pause_rounded, color: AppColors.textPrimary(isDark)),
-                            onPressed: _pauseRestTimer,
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.refresh_rounded, color: AppColors.textPrimary(isDark)),
-                            onPressed: _resetRestTimer,
-                          ),
-                        ] else ...[
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                            ),
-                            onPressed: () => _startRestTimer(_ex.restSeconds),
-                            child: const Text('Start Rest'),
-                          ),
-                        ],
+                        _buildSummaryStat('Duration', '${session.durationMinutes} min', Icons.timer_outlined, AppColors.primary, isDark),
+                        _buildSummaryStat('Sets Done', '${session.totalSetsCompleted}', Icons.fitness_center_rounded, AppColors.accentGreen, isDark),
+                        _buildSummaryStat('Exercises', '${session.completedExercisesCount}/${session.totalExercisesCount}', Icons.check_circle_outline, AppColors.secondary, isDark),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Smart Next Session Targets:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Would you like to upgrade future templates with these overload targets?',
+                    style: TextStyle(fontSize: 11.5, color: Theme.of(context).hintColor),
+                  ),
+                  const SizedBox(height: 12),
 
-                  // Sets Checklist & Weights
-                  const Text('Set Tracker', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 10),
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _ex.sets,
-                    itemBuilder: (context, setIdx) {
-                      final isDone = setIdx < _ex.completedSets.length && _ex.completedSets[setIdx];
+                  if (suggestions.isEmpty)
+                    Text('Great workout logged! Keep maintaining your form.', style: TextStyle(fontSize: 12.5, color: Theme.of(context).hintColor))
+                  else
+                    ...suggestions.map((sug) {
                       return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: isDone ? AppColors.accentGreen.withValues(alpha: 0.12) : theme.cardColor,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: isDone ? AppColors.accentGreen.withValues(alpha: 0.4) : theme.dividerColor.withValues(alpha: 0.1)),
+                          color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppColors.accentAmber.withValues(alpha: 0.3)),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('Set ${setIdx + 1}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                                const SizedBox(width: 12),
-                                Text(
-                                  '${_ex.reps} reps @ ${_ex.weightKg.toStringAsFixed(0)} kg',
-                                  style: TextStyle(fontSize: 13, color: theme.hintColor),
+                                Expanded(
+                                  child: Text(
+                                    sug.exerciseName,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.accentAmber.withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    '+ PROGRESSION',
+                                    style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: AppColors.accentAmber),
+                                  ),
                                 ),
                               ],
                             ),
-                            IconButton(
-                              icon: Icon(
-                                isDone ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-                                color: isDone ? AppColors.accentGreen : theme.hintColor,
-                              ),
-                              onPressed: () => _toggleSetCompletion(setIdx),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Next Goal: ${sug.targetDisplay}',
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.accentGreen),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              sug.reason,
+                              style: TextStyle(fontSize: 11, color: Theme.of(context).hintColor),
                             ),
                           ],
                         ),
                       );
-                    },
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Instructions & Technique cues
-                  const Text('Form & Execution', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: theme.cardColor,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Text(_ex.instructions, style: TextStyle(fontSize: 13.5, color: theme.hintColor, height: 1.4)),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Previous & Personal Records
-                  if (_ex.previousPerformance != null) ...[
-                    const Text('Previous Performance', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: theme.cardColor,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Text(_ex.previousPerformance!, style: TextStyle(fontSize: 13, color: theme.hintColor)),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
+                    }),
                 ],
               ),
             ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Keep Same'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () async {
+                // Apply Progressive Overload to future template for this day
+                final plan = _getDayPlan(session.dayName);
+                final updatedExercises = List<ExerciseDetail>.from(plan.exercises);
+
+                for (final sug in suggestions) {
+                  final exIdx = updatedExercises.indexWhere((e) => e.name.toLowerCase() == sug.exerciseName.toLowerCase());
+                  if (exIdx != -1) {
+                    final old = updatedExercises[exIdx];
+                    final oldPerf = 'Last session: ${old.sets} × ${old.reps}${old.weightKg > 0 ? " @ ${old.weightKg.toStringAsFixed(1)} kg" : ""}';
+                    updatedExercises[exIdx] = old.copyWith(
+                      reps: sug.suggestedReps,
+                      weightKg: sug.suggestedWeightKg,
+                      targetDurationSeconds: sug.suggestedDurationSeconds,
+                      previousPerformance: oldPerf,
+                    );
+                  }
+                }
+
+                final updatedPlan = plan.copyWith(
+                  version: plan.version + 1,
+                  exercises: updatedExercises,
+                );
+
+                await DBHelper.instance.saveWorkoutPlan(updatedPlan);
+                await _loadAllWorkoutData();
+
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('🚀 ${session.dayName} template upgraded with progressive overload!'),
+                      backgroundColor: AppColors.accentGreen,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Accept Next Target (Overload)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryStat(String label, String value, IconData icon, Color color, bool isDark) {
+    return Column(
+      children: [
+        Icon(icon, size: 20, color: color),
+        const SizedBox(height: 4),
+        Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+        Text(label, style: TextStyle(fontSize: 10.5, color: Theme.of(context).hintColor)),
+      ],
+    );
+  }
+
+  // ================= MAIN BUILD METHOD =================
+  @override
+  Widget build(BuildContext context) {
+    final isDark = ThemeService.instance.isDarkMode(context);
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(
+        title: const Text('Workout & Progressive Overload', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Reload Plans',
+            onPressed: _loadAllWorkoutData,
+          ),
+        ],
+        bottom: TabBar(
+          controller: _mainTabController,
+          indicatorColor: AppColors.primary,
+          indicatorWeight: 3,
+          labelColor: AppColors.primary,
+          unselectedLabelColor: Theme.of(context).hintColor,
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          tabs: const [
+            Tab(icon: Icon(Icons.today_rounded, size: 18), text: "Today's Workout"),
+            Tab(icon: Icon(Icons.view_week_rounded, size: 18), text: "7-Day Split"),
+            Tab(icon: Icon(Icons.history_rounded, size: 18), text: "History"),
+            Tab(icon: Icon(Icons.trending_up_rounded, size: 18), text: "PRs & Progress"),
+          ],
+        ),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Stack(
+              children: [
+                TabBarView(
+                  controller: _mainTabController,
+                  children: [
+                    // TAB 1: Today's Auto-Fetched Workout
+                    _buildTodayAutoWorkoutTab(isDark),
+
+                    // TAB 2: Workout Builder & 7-Day Plan
+                    _buildWorkoutBuilderTab(isDark),
+
+                    // TAB 3: Immutable Workout History Logs
+                    _buildWorkoutHistoryTab(isDark),
+
+                    // TAB 4: PRs & Progressive Overload Metrics
+                    _buildProgressAndPRsTab(isDark),
+                  ],
+                ),
+
+                // Floating Rest Timer Widget (if running)
+                if (_isRestTimerRunning) _buildFloatingRestTimerOverlay(isDark),
+              ],
+            ),
+    );
+  }
+
+  // ================= TAB 1: TODAY'S AUTO WORKOUT =================
+  Widget _buildTodayAutoWorkoutTab(bool isDark) {
+    final todayDayName = _currentDayName;
+    final plan = _getDayPlan(todayDayName);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Banner: Today Date & Day Info
+          GlassCard(
+            borderRadius: 20,
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.35), width: 1.5),
+            gradient: LinearGradient(
+              colors: isDark
+                  ? [AppColors.primary.withValues(alpha: 0.22), AppColors.secondary.withValues(alpha: 0.10)]
+                  : [AppColors.primary.withValues(alpha: 0.08), AppColors.secondary.withValues(alpha: 0.04)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'TODAY • ${todayDayName.toUpperCase()}',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1.1),
+                      ),
+                    ),
+                    Text(
+                      _formattedTodayDate,
+                      style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  plan.workoutName,
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.textPrimary(isDark)),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.fitness_center_rounded, size: 14, color: AppColors.primary),
+                    const SizedBox(width: 4),
+                    Text(plan.muscleGroup, style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary(isDark), fontWeight: FontWeight.w600)),
+                    const SizedBox(width: 12),
+                    const Icon(Icons.timer_outlined, size: 14, color: AppColors.secondary),
+                    const SizedBox(width: 4),
+                    Text('~${plan.estimatedDurationMinutes} mins', style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary(isDark), fontWeight: FontWeight.w600)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Live Workout Stopwatch Control Bar
+                if (_isLiveSessionActive) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentAmber.withValues(alpha: isDark ? 0.20 : 0.12),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.accentAmber.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: const BoxDecoration(
+                                color: AppColors.accentAmber,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('LIVE WORKOUT IN PROGRESS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.accentAmber)),
+                                Text(
+                                  _formatTimerTime(_elapsedSeconds),
+                                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: Icon(_stopwatchTimer != null && _stopwatchTimer!.isActive ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill_rounded, size: 28, color: AppColors.accentAmber),
+                              tooltip: 'Pause / Resume',
+                              onPressed: _pauseResumeStopwatch,
+                            ),
+                            const SizedBox(width: 4),
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.accentGreen,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              icon: const Icon(Icons.check_circle_rounded, size: 16),
+                              label: const Text('Finish', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                              onPressed: _finishLiveWorkoutPrompt,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else ...[
+                  if (plan.isRestDay)
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.accentPurple.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.bedtime_rounded, color: AppColors.accentPurple, size: 24),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Rest Day — Recovery is part of the plan. Hydrate, stretch, and get quality sleep.',
+                              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          elevation: 3,
+                        ),
+                        icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                        label: const Text('Start Workout Session', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                        onPressed: () => _startLiveWorkout(plan),
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Exercise List Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Exercises (${plan.exercises.length})',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              if (!_isLiveSessionActive && !plan.isRestDay)
+                TextButton.icon(
+                  icon: const Icon(Icons.edit_note_rounded, size: 16),
+                  label: const Text('Customize in Builder', style: TextStyle(fontSize: 12)),
+                  onPressed: () {
+                    setState(() {
+                      _selectedBuilderDayIndex = (DateTime.now().weekday - 1).clamp(0, 6);
+                      _mainTabController.animateTo(1);
+                    });
+                  },
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Exercise Cards
+          if (plan.exercises.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text('No exercises configured for $todayDayName.', style: TextStyle(color: Theme.of(context).hintColor)),
+              ),
+            )
+          else
+            ...plan.exercises.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final ex = entry.value;
+              return _buildTodayExerciseCard(ex, idx, isDark);
+            }),
+          const SizedBox(height: 60),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTodayExerciseCard(ExerciseDetail ex, int index, bool isDark) {
+    final sets = _liveSetRecords[ex.id] ??
+        List.generate(
+          ex.sets,
+          (i) => WorkoutSetRecord(
+            setNumber: i + 1,
+            reps: ex.reps,
+            weightKg: ex.weightKg,
+            durationSeconds: ex.targetDurationSeconds,
+            isCompleted: false,
+            isBodyweight: ex.isBodyweight,
+            isTimeBased: ex.isTimeBased,
+          ),
+        );
+
+    final completedCount = sets.where((s) => s.isCompleted).length;
+
+    return GlassCard(
+      margin: const EdgeInsets.only(bottom: 14),
+      borderRadius: 18,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Center(
+                  child: Text(
+                    ex.photoUrl.isNotEmpty ? ex.photoUrl : WorkoutTemplateModels.getIllustrationForExercise(ex.name),
+                    style: const TextStyle(fontSize: 26),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${index + 1}. ${ex.name}',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary(isDark)),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${ex.targetMuscle} • ${ex.equipment}',
+                      style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary(isDark)),
+                    ),
+                  ],
+                ),
+              ),
+              if (_isLiveSessionActive)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: completedCount >= ex.sets
+                        ? AppColors.accentGreen.withValues(alpha: 0.2)
+                        : AppColors.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '$completedCount / ${ex.sets} Sets',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: completedCount >= ex.sets ? AppColors.accentGreen : AppColors.primary,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Previous Performance info (if available)
+          if (ex.previousPerformance != null && ex.previousPerformance!.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.history_edu_rounded, size: 14, color: AppColors.secondary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      ex.previousPerformance!,
+                      style: TextStyle(fontSize: 11, color: Theme.of(context).hintColor),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+
+          // Sets rows (Interactive in Live mode)
+          ...sets.asMap().entries.map((setEntry) {
+            final setIdx = setEntry.key;
+            final setRecord = setEntry.value;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: setRecord.isCompleted
+                    ? AppColors.accentGreen.withValues(alpha: isDark ? 0.15 : 0.10)
+                    : (isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: setRecord.isCompleted
+                      ? AppColors.accentGreen.withValues(alpha: 0.35)
+                      : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Set ${setRecord.setNumber}',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: AppColors.textPrimary(isDark)),
+                  ),
+                  if (ex.isTimeBased) ...[
+                    Text(
+                      '${setRecord.durationSeconds > 0 ? setRecord.durationSeconds : ex.targetDurationSeconds} sec duration',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark)),
+                    ),
+                  ] else if (ex.isBodyweight) ...[
+                    Text(
+                      '${setRecord.reps} reps (Bodyweight)',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark)),
+                    ),
+                  ] else ...[
+                    Text(
+                      '${setRecord.reps} reps @ ${setRecord.weightKg.toStringAsFixed(setRecord.weightKg % 1 == 0 ? 0 : 1)} kg',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark), fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                  if (_isLiveSessionActive) ...[
+                    InkWell(
+                      onTap: () => _toggleLiveSetCompletion(ex.id, setIdx, ex.restSeconds, ex.name),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: setRecord.isCompleted ? AppColors.accentGreen : Colors.transparent,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: setRecord.isCompleted ? AppColors.accentGreen : Theme.of(context).hintColor,
+                            width: 2,
+                          ),
+                        ),
+                        child: Icon(
+                          setRecord.isCompleted ? Icons.check : Icons.circle,
+                          size: 14,
+                          color: setRecord.isCompleted ? Colors.white : Colors.transparent,
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    Icon(Icons.check_circle_outline_rounded, size: 16, color: Theme.of(context).hintColor),
+                  ],
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  // ================= TAB 2: WORKOUT BUILDER & 7-DAY PLAN =================
+  Widget _buildWorkoutBuilderTab(bool isDark) {
+    final selectedDay = _days[_selectedBuilderDayIndex];
+    final plan = _getDayPlan(selectedDay);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Day selector chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: _days.asMap().entries.map((e) {
+                final idx = e.key;
+                final day = e.value;
+                final isSelected = idx == _selectedBuilderDayIndex;
+                final dayPlan = _getDayPlan(day);
+
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(day.substring(0, 3), style: TextStyle(fontWeight: FontWeight.bold, color: isSelected ? Colors.white : null)),
+                        Text(dayPlan.isRestDay ? 'Rest' : '${dayPlan.exercises.length} ex', style: TextStyle(fontSize: 9.5, color: isSelected ? Colors.white70 : null)),
+                      ],
+                    ),
+                    selected: isSelected,
+                    selectedColor: AppColors.primary,
+                    onSelected: (val) {
+                      if (val) setState(() => _selectedBuilderDayIndex = idx);
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Plan Configuration Card
+          GlassCard(
+            borderRadius: 18,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '$selectedDay Configuration',
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.textPrimary(isDark)),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 20),
+                      tooltip: 'Edit Plan Info',
+                      onPressed: () => _editDayPlanHeaderModal(selectedDay),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  plan.workoutName,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary),
+                ),
+                Text(
+                  'Focus: ${plan.muscleGroup} • ~${plan.estimatedDurationMinutes} mins • ${plan.difficulty}',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark)),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                        icon: const Icon(Icons.copy_rounded, size: 15),
+                        label: const Text('Duplicate Day', style: TextStyle(fontSize: 11.5)),
+                        onPressed: () => _duplicateDayPlanModal(selectedDay),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          foregroundColor: plan.isRestDay ? AppColors.primary : AppColors.accentPurple,
+                        ),
+                        icon: Icon(plan.isRestDay ? Icons.fitness_center_rounded : Icons.bedtime_rounded, size: 15),
+                        label: Text(plan.isRestDay ? 'Set as Workout' : 'Set as Rest Day', style: const TextStyle(fontSize: 11.5)),
+                        onPressed: () async {
+                          final updated = plan.copyWith(
+                            isRestDay: !plan.isRestDay,
+                            workoutName: !plan.isRestDay ? 'Rest & Recovery' : '$selectedDay Workout',
+                            status: !plan.isRestDay ? WorkoutStatus.restDay : WorkoutStatus.planned,
+                          );
+                          setState(() => _workoutPlans[selectedDay] = updated);
+                          await DBHelper.instance.saveWorkoutPlan(updated);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Exercise List with Add Button
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Exercises (${plan.exercises.length})',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text('Add Exercise', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                onPressed: () => _openExerciseLibrarySelector(selectedDay),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Reorderable Exercise List
+          if (plan.exercises.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(plan.isRestDay ? Icons.bedtime_rounded : Icons.fitness_center_rounded, size: 36, color: Theme.of(context).hintColor),
+                    const SizedBox(height: 8),
+                    Text(
+                      plan.isRestDay ? 'Rest Day — No exercises needed.' : 'No exercises added yet. Tap "Add Exercise" to select from library!',
+                      style: TextStyle(fontSize: 12.5, color: Theme.of(context).hintColor),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            ...plan.exercises.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final ex = entry.value;
+              return _buildBuilderExerciseTile(ex, idx, selectedDay, isDark);
+            }),
+          const SizedBox(height: 60),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBuilderExerciseTile(ExerciseDetail ex, int index, String dayName, bool isDark) {
+    final plan = _getDayPlan(dayName);
+
+    return GlassCard(
+      margin: const EdgeInsets.only(bottom: 10),
+      borderRadius: 14,
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          Text('${index + 1}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.primary)),
+          const SizedBox(width: 10),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Center(child: Text(ex.photoUrl, style: const TextStyle(fontSize: 20))),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(ex.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                Text(
+                  ex.isTimeBased
+                      ? '${ex.sets} sets × ${ex.targetDurationSeconds}s • ${ex.equipment}'
+                      : ex.isBodyweight
+                          ? '${ex.sets} sets × ${ex.reps} reps (Bodyweight)'
+                          : '${ex.sets} sets × ${ex.reps} reps @ ${ex.weightKg.toStringAsFixed(ex.weightKg % 1 == 0 ? 0 : 1)} kg',
+                  style: TextStyle(fontSize: 11.5, color: Theme.of(context).hintColor),
+                ),
+              ],
+            ),
+          ),
+          // Move Up / Down
+          IconButton(
+            icon: const Icon(Icons.arrow_upward_rounded, size: 16),
+            tooltip: 'Move Up',
+            onPressed: index > 0
+                ? () async {
+                    final list = List<ExerciseDetail>.from(plan.exercises);
+                    final temp = list[index];
+                    list[index] = list[index - 1];
+                    list[index - 1] = temp;
+                    final updated = plan.copyWith(exercises: list);
+                    setState(() => _workoutPlans[dayName] = updated);
+                    await DBHelper.instance.saveWorkoutPlan(updated);
+                  }
+                : null,
+          ),
+          IconButton(
+            icon: const Icon(Icons.arrow_downward_rounded, size: 16),
+            tooltip: 'Move Down',
+            onPressed: index < plan.exercises.length - 1
+                ? () async {
+                    final list = List<ExerciseDetail>.from(plan.exercises);
+                    final temp = list[index];
+                    list[index] = list[index + 1];
+                    list[index + 1] = temp;
+                    final updated = plan.copyWith(exercises: list);
+                    setState(() => _workoutPlans[dayName] = updated);
+                    await DBHelper.instance.saveWorkoutPlan(updated);
+                  }
+                : null,
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.accentRose),
+            tooltip: 'Delete',
+            onPressed: () async {
+              final list = List<ExerciseDetail>.from(plan.exercises)..removeAt(index);
+              final updated = plan.copyWith(exercises: list);
+              setState(() => _workoutPlans[dayName] = updated);
+              await DBHelper.instance.saveWorkoutPlan(updated);
+            },
           ),
         ],
       ),
     );
   }
+
+  // Exercise Library Picker Dialog
+  void _openExerciseLibrarySelector(String dayName) {
+    final categories = WorkoutTemplateModels.getExerciseLibrary();
+    final customNameCtrl = TextEditingController();
+    final customMuscleCtrl = TextEditingController();
+    final customSetsCtrl = TextEditingController(text: '3');
+    final customRepsCtrl = TextEditingController(text: '10');
+    final customWeightCtrl = TextEditingController(text: '20');
+    bool isCustomBw = false;
+    bool isCustomTb = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setSheetState) => Container(
+          height: MediaQuery.of(context).size.height * 0.85,
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
+                width: 44,
+                height: 4,
+                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Exercise Library', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  children: [
+                    // Custom Exercise Quick Builder
+                    ExpansionTile(
+                      leading: const Icon(Icons.add_circle_outline, color: AppColors.primary),
+                      title: const Text('Create Custom Exercise', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            children: [
+                              TextField(
+                                controller: customNameCtrl,
+                                decoration: const InputDecoration(labelText: 'Exercise Name', border: OutlineInputBorder()),
+                              ),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: customMuscleCtrl,
+                                decoration: const InputDecoration(labelText: 'Target Muscle', border: OutlineInputBorder()),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: customSetsCtrl,
+                                      keyboardType: TextInputType.number,
+                                      decoration: const InputDecoration(labelText: 'Sets', border: OutlineInputBorder()),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: customRepsCtrl,
+                                      keyboardType: TextInputType.number,
+                                      decoration: const InputDecoration(labelText: 'Reps', border: OutlineInputBorder()),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: customWeightCtrl,
+                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                      decoration: const InputDecoration(labelText: 'Weight (kg)', border: OutlineInputBorder()),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Checkbox(value: isCustomBw, onChanged: (v) => setSheetState(() => isCustomBw = v ?? false)),
+                                  const Text('Bodyweight', style: TextStyle(fontSize: 12)),
+                                  const SizedBox(width: 16),
+                                  Checkbox(value: isCustomTb, onChanged: (v) => setSheetState(() => isCustomTb = v ?? false)),
+                                  const Text('Time-based', style: TextStyle(fontSize: 12)),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                                onPressed: () async {
+                                  final name = customNameCtrl.text.trim();
+                                  if (name.isEmpty) return;
+                                  final newEx = ExerciseDetail(
+                                    id: 'custom_ex_${DateTime.now().millisecondsSinceEpoch}',
+                                    name: name,
+                                    targetMuscle: customMuscleCtrl.text.trim().isNotEmpty ? customMuscleCtrl.text.trim() : 'General',
+                                    sets: int.tryParse(customSetsCtrl.text) ?? 3,
+                                    reps: int.tryParse(customRepsCtrl.text) ?? 10,
+                                    weightKg: double.tryParse(customWeightCtrl.text) ?? 0.0,
+                                    isBodyweight: isCustomBw,
+                                    isTimeBased: isCustomTb,
+                                    photoUrl: WorkoutTemplateModels.getIllustrationForExercise(name),
+                                  );
+
+                                  final plan = _getDayPlan(dayName);
+                                  final updated = plan.copyWith(exercises: List.from(plan.exercises)..add(newEx));
+                                  setState(() => _workoutPlans[dayName] = updated);
+                                  await DBHelper.instance.saveWorkoutPlan(updated);
+                                  if (ctx.mounted) Navigator.pop(ctx);
+                                },
+                                child: const Text('Add Custom Exercise', style: TextStyle(color: Colors.white)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Categorized Library
+                    ...categories.map((cat) {
+                      return ExpansionTile(
+                        leading: Text(cat.icon, style: const TextStyle(fontSize: 22)),
+                        title: Text(cat.categoryName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                        subtitle: Text('${cat.exercises.length} exercises', style: TextStyle(fontSize: 11, color: Theme.of(context).hintColor)),
+                        children: cat.exercises.map((libEx) {
+                          return ListTile(
+                            title: Text(libEx.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
+                            subtitle: Text('${libEx.targetMuscle} • ${libEx.equipment} • ${libEx.sets}×${libEx.reps}', style: const TextStyle(fontSize: 11.5)),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.add_circle, color: AppColors.primary),
+                              onPressed: () async {
+                                final plan = _getDayPlan(dayName);
+                                final copyEx = libEx.copyWith(id: 'ex_${DateTime.now().millisecondsSinceEpoch}');
+                                final updated = plan.copyWith(exercises: List.from(plan.exercises)..add(copyEx));
+                                setState(() => _workoutPlans[dayName] = updated);
+                                await DBHelper.instance.saveWorkoutPlan(updated);
+                                if (ctx.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Added ${libEx.name} to $dayName!'), duration: const Duration(seconds: 1)),
+                                  );
+                                }
+                              },
+                            ),
+                          );
+                        }).toList(),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _editDayPlanHeaderModal(String dayName) {
+    final plan = _getDayPlan(dayName);
+    final nameCtrl = TextEditingController(text: plan.workoutName);
+    final muscleCtrl = TextEditingController(text: plan.muscleGroup);
+    final durCtrl = TextEditingController(text: plan.estimatedDurationMinutes.toString());
+    String diff = plan.difficulty;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Edit $dayName Workout Info', style: const TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Workout Title', border: OutlineInputBorder())),
+            const SizedBox(height: 10),
+            TextField(controller: muscleCtrl, decoration: const InputDecoration(labelText: 'Muscle Group', border: OutlineInputBorder())),
+            const SizedBox(height: 10),
+            TextField(controller: durCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Duration (Mins)', border: OutlineInputBorder())),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            onPressed: () async {
+              final updated = plan.copyWith(
+                workoutName: nameCtrl.text.trim().isNotEmpty ? nameCtrl.text.trim() : plan.workoutName,
+                muscleGroup: muscleCtrl.text.trim().isNotEmpty ? muscleCtrl.text.trim() : plan.muscleGroup,
+                estimatedDurationMinutes: int.tryParse(durCtrl.text) ?? plan.estimatedDurationMinutes,
+              );
+              setState(() => _workoutPlans[dayName] = updated);
+              await DBHelper.instance.saveWorkoutPlan(updated);
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('Save', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _duplicateDayPlanModal(String sourceDay) {
+    String targetDay = _days.firstWhere((d) => d != sourceDay);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDlgState) => AlertDialog(
+          title: Text('Duplicate $sourceDay to another day', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: targetDay,
+                decoration: const InputDecoration(labelText: 'Target Day', border: OutlineInputBorder()),
+                items: _days.where((d) => d != sourceDay).map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+                onChanged: (v) {
+                  if (v != null) setDlgState(() => targetDay = v);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+              onPressed: () async {
+                final source = _getDayPlan(sourceDay);
+                final duplicated = source.copyWith(
+                  id: 'plan_${targetDay.toLowerCase()}',
+                  dayName: targetDay,
+                  workoutName: source.workoutName,
+                );
+                setState(() => _workoutPlans[targetDay] = duplicated);
+                await DBHelper.instance.saveWorkoutPlan(duplicated);
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Copied $sourceDay workout to $targetDay!'), backgroundColor: AppColors.accentGreen),
+                  );
+                }
+              },
+              child: const Text('Copy Plan', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ================= TAB 3: IMMUTABLE WORKOUT HISTORY =================
+  Widget _buildWorkoutHistoryTab(bool isDark) {
+    if (_historySessions.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.history_rounded, size: 54, color: Theme.of(context).hintColor),
+              const SizedBox(height: 12),
+              const Text('No workout sessions logged yet.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 4),
+              Text('Complete a live workout to record your immutable session history.', style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor), textAlign: TextAlign.center),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      itemCount: _historySessions.length,
+      itemBuilder: (context, index) {
+        final session = _historySessions[index];
+        return GlassCard(
+          margin: const EdgeInsets.only(bottom: 14),
+          borderRadius: 18,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentGreen.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '${session.dayName.toUpperCase()} • ${session.date}',
+                      style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.accentGreen),
+                    ),
+                  ),
+                  Text('${session.durationMinutes} min duration', style: TextStyle(fontSize: 11.5, color: Theme.of(context).hintColor)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                session.workoutName,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              Text(session.muscleGroup, style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor)),
+              const SizedBox(height: 10),
+              Divider(height: 1, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+              const SizedBox(height: 8),
+              ...session.exercises.map((ex) {
+                final completedSets = ex.actualSets.where((s) => s.isCompleted).toList();
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle_rounded, size: 14, color: AppColors.accentGreen),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          ex.exerciseName,
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5),
+                        ),
+                      ),
+                      Text(
+                        '${completedSets.length}/${ex.plannedSets} sets (${completedSets.isNotEmpty ? "${completedSets.first.reps} reps" : ""}${completedSets.isNotEmpty && completedSets.first.weightKg > 0 ? " @ ${completedSets.first.weightKg}kg" : ""})',
+                        style: TextStyle(fontSize: 11.5, color: Theme.of(context).hintColor),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ================= TAB 4: PRs & PROGRESS =================
+  Widget _buildProgressAndPRsTab(bool isDark) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // PR Trophy Banner
+          GlassCard(
+            borderRadius: 18,
+            gradient: LinearGradient(
+              colors: isDark
+                  ? [AppColors.accentAmber.withValues(alpha: 0.2), AppColors.primary.withValues(alpha: 0.1)]
+                  : [AppColors.accentAmber.withValues(alpha: 0.1), AppColors.primary.withValues(alpha: 0.05)],
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.emoji_events_rounded, color: AppColors.accentAmber, size: 36),
+                SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('PERSONAL RECORD VAULT', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1.1)),
+                      Text('Auto-calculated lifetime maximums from actual workouts.', style: TextStyle(fontSize: 11.5)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          if (_personalRecords.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text('Complete live workouts to unlock your personal records!', style: TextStyle(color: Theme.of(context).hintColor)),
+              ),
+            )
+          else
+            ..._personalRecords.values.map((pr) {
+              return GlassCard(
+                margin: const EdgeInsets.only(bottom: 10),
+                borderRadius: 14,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(pr.exerciseName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          if (pr.heaviestWeightKg > 0)
+                            Text('Max Weight: ${pr.heaviestWeightKg.toStringAsFixed(1)} kg', style: const TextStyle(fontSize: 12, color: AppColors.accentGreen, fontWeight: FontWeight.bold)),
+                          if (pr.maxReps > 0)
+                            Text('Max Reps: ${pr.maxReps} reps', style: TextStyle(fontSize: 11.5, color: Theme.of(context).hintColor)),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.military_tech_rounded, color: AppColors.accentAmber, size: 24),
+                  ],
+                ),
+              );
+            }),
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  // Floating Rest Timer
+  Widget _buildFloatingRestTimerOverlay(bool isDark) {
+    return Positioned(
+      bottom: 20,
+      left: 20,
+      right: 20,
+      child: Material(
+        elevation: 8,
+        borderRadius: BorderRadius.circular(16),
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.accentAmber, width: 1.5),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.timer_outlined, color: AppColors.accentAmber, size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Resting: ${_restSecondsRemaining}s remaining', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                    Text('Exercise: $_currentRestingExercise', style: TextStyle(fontSize: 11, color: Theme.of(context).hintColor)),
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: _cancelRestCountdown,
+                child: const Text('Skip Rest', style: TextStyle(color: AppColors.accentRose, fontWeight: FontWeight.bold, fontSize: 12)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
+
