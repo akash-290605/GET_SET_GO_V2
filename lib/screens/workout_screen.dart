@@ -414,9 +414,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> with SingleTickerProvider
                                     color: AppColors.accentAmber.withValues(alpha: 0.2),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
-                                  child: Text(
+                                  child: const Text(
                                     '+ PROGRESSION',
-                                    style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: AppColors.accentAmber),
+                                    style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: AppColors.accentAmber),
                                   ),
                                 ),
                               ],
@@ -1015,7 +1015,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> with SingleTickerProvider
                 const SizedBox(height: 4),
                 Text(
                   plan.workoutName,
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary),
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary),
                 ),
                 Text(
                   'Focus: ${plan.muscleGroup} • ~${plan.estimatedDurationMinutes} mins • ${plan.difficulty}',
@@ -1377,7 +1377,6 @@ class _WorkoutScreenState extends State<WorkoutScreen> with SingleTickerProvider
     final nameCtrl = TextEditingController(text: plan.workoutName);
     final muscleCtrl = TextEditingController(text: plan.muscleGroup);
     final durCtrl = TextEditingController(text: plan.estimatedDurationMinutes.toString());
-    String diff = plan.difficulty;
 
     showDialog(
       context: context,
