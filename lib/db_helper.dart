@@ -7,6 +7,7 @@ import 'models/body_photo_model.dart';
 import 'models/physique_measurement_model.dart';
 import 'models/weight_entry_model.dart';
 import 'models/workout_history_model.dart';
+import 'models/study_english_models.dart';
 
 class DBHelper {
   static final DBHelper instance = DBHelper._init();
@@ -25,6 +26,8 @@ class DBHelper {
   final List<Map<String, dynamic>> _inMemoryWorkoutLogs = [];
   final List<Map<String, dynamic>> _inMemoryWorkoutSessions = [];
   final Map<String, Map<String, dynamic>> _inMemoryPersonalRecords = {};
+  final List<Map<String, dynamic>> _inMemorySpeakingRecords = [];
+  final List<Map<String, dynamic>> _inMemoryLiveConversations = [];
 
   DBHelper._init();
 
@@ -48,7 +51,7 @@ class DBHelper {
 
     return await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: _createDB,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 3) {
@@ -169,6 +172,56 @@ class DBHelper {
                 maxRepsDate TEXT,
                 maxDurationSeconds INTEGER NOT NULL,
                 maxDurationDate TEXT
+              )
+            ''');
+          } catch (_) {}
+        }
+        if (oldVersion < 6) {
+          try {
+            await db.execute('''
+              CREATE TABLE IF NOT EXISTS speaking_records (
+                id TEXT PRIMARY KEY,
+                userId TEXT NOT NULL,
+                date TEXT NOT NULL,
+                time TEXT NOT NULL,
+                topic TEXT NOT NULL,
+                durationSeconds INTEGER NOT NULL,
+                transcript TEXT NOT NULL,
+                correctionsJson TEXT NOT NULL,
+                vocabularySuggestionsJson TEXT NOT NULL,
+                fluencyScore REAL NOT NULL,
+                wordsCount INTEGER NOT NULL,
+                wordsPerMinute INTEGER NOT NULL,
+                fillerWordsCount INTEGER NOT NULL,
+                fillerDetailsJson TEXT NOT NULL,
+                longPausesCount INTEGER NOT NULL,
+                pronunciationTipsJson TEXT NOT NULL,
+                whatYouDidWellJson TEXT NOT NULL,
+                improveTheseJson TEXT NOT NULL,
+                betterVersion TEXT NOT NULL,
+                isVideoSaved INTEGER NOT NULL,
+                videoPath TEXT,
+                createdAt TEXT NOT NULL
+              )
+            ''');
+            await db.execute('''
+              CREATE TABLE IF NOT EXISTS live_conversations (
+                id TEXT PRIMARY KEY,
+                userId TEXT NOT NULL,
+                date TEXT NOT NULL,
+                topic TEXT NOT NULL,
+                durationSeconds INTEGER NOT NULL,
+                mode TEXT NOT NULL,
+                level TEXT NOT NULL,
+                isCorrectionEnabled INTEGER NOT NULL,
+                messagesJson TEXT NOT NULL,
+                wordsSpokenApprox INTEGER NOT NULL,
+                commonFillersJson TEXT NOT NULL,
+                grammarIssuesJson TEXT NOT NULL,
+                newVocabularyJson TEXT NOT NULL,
+                recommendedPractice TEXT NOT NULL,
+                whatToPracticeNext TEXT NOT NULL,
+                createdAt TEXT NOT NULL
               )
             ''');
           } catch (_) {}
@@ -348,6 +401,52 @@ class DBHelper {
         maxRepsDate TEXT,
         maxDurationSeconds INTEGER NOT NULL,
         maxDurationDate TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS speaking_records (
+        id TEXT PRIMARY KEY,
+        userId TEXT NOT NULL,
+        date TEXT NOT NULL,
+        time TEXT NOT NULL,
+        topic TEXT NOT NULL,
+        durationSeconds INTEGER NOT NULL,
+        transcript TEXT NOT NULL,
+        correctionsJson TEXT NOT NULL,
+        vocabularySuggestionsJson TEXT NOT NULL,
+        fluencyScore REAL NOT NULL,
+        wordsCount INTEGER NOT NULL,
+        wordsPerMinute INTEGER NOT NULL,
+        fillerWordsCount INTEGER NOT NULL,
+        fillerDetailsJson TEXT NOT NULL,
+        longPausesCount INTEGER NOT NULL,
+        pronunciationTipsJson TEXT NOT NULL,
+        whatYouDidWellJson TEXT NOT NULL,
+        improveTheseJson TEXT NOT NULL,
+        betterVersion TEXT NOT NULL,
+        isVideoSaved INTEGER NOT NULL,
+        videoPath TEXT,
+        createdAt TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS live_conversations (
+        id TEXT PRIMARY KEY,
+        userId TEXT NOT NULL,
+        date TEXT NOT NULL,
+        topic TEXT NOT NULL,
+        durationSeconds INTEGER NOT NULL,
+        mode TEXT NOT NULL,
+        level TEXT NOT NULL,
+        isCorrectionEnabled INTEGER NOT NULL,
+        messagesJson TEXT NOT NULL,
+        wordsSpokenApprox INTEGER NOT NULL,
+        commonFillersJson TEXT NOT NULL,
+        grammarIssuesJson TEXT NOT NULL,
+        newVocabularyJson TEXT NOT NULL,
+        recommendedPractice TEXT NOT NULL,
+        whatToPracticeNext TEXT NOT NULL,
+        createdAt TEXT NOT NULL
       )
     ''');
   }
@@ -888,5 +987,69 @@ class DBHelper {
       );
       await savePersonalRecord(updated);
     }
+  }
+
+  // --- SPEAKING PRACTICE RECORDS CRUD ---
+  Future<void> insertSpeakingRecord(SpeakingPracticeRecord record) async {
+    final map = record.toMap();
+    final db = await database;
+    if (db == null) {
+      _inMemorySpeakingRecords.removeWhere((e) => e['id'] == record.id);
+      _inMemorySpeakingRecords.insert(0, map);
+      return;
+    }
+    await db.insert('speaking_records', map, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<SpeakingPracticeRecord>> fetchSpeakingRecords() async {
+    final db = await database;
+    List<Map<String, dynamic>> maps;
+    if (db == null) {
+      maps = List.from(_inMemorySpeakingRecords);
+    } else {
+      maps = await db.query('speaking_records', orderBy: 'createdAt DESC');
+    }
+    return maps.map((e) => SpeakingPracticeRecord.fromMap(e)).toList();
+  }
+
+  Future<void> deleteSpeakingRecord(String id) async {
+    final db = await database;
+    if (db == null) {
+      _inMemorySpeakingRecords.removeWhere((e) => e['id'] == id);
+      return;
+    }
+    await db.delete('speaking_records', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // --- LIVE CONVERSATIONS CRUD ---
+  Future<void> insertLiveConversation(LiveConversationSession session) async {
+    final map = session.toMap();
+    final db = await database;
+    if (db == null) {
+      _inMemoryLiveConversations.removeWhere((e) => e['id'] == session.id);
+      _inMemoryLiveConversations.insert(0, map);
+      return;
+    }
+    await db.insert('live_conversations', map, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<LiveConversationSession>> fetchLiveConversations() async {
+    final db = await database;
+    List<Map<String, dynamic>> maps;
+    if (db == null) {
+      maps = List.from(_inMemoryLiveConversations);
+    } else {
+      maps = await db.query('live_conversations', orderBy: 'createdAt DESC');
+    }
+    return maps.map((e) => LiveConversationSession.fromMap(e)).toList();
+  }
+
+  Future<void> deleteLiveConversation(String id) async {
+    final db = await database;
+    if (db == null) {
+      _inMemoryLiveConversations.removeWhere((e) => e['id'] == id);
+      return;
+    }
+    await db.delete('live_conversations', where: 'id = ?', whereArgs: [id]);
   }
 }
