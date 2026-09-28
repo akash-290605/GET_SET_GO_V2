@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
@@ -23,6 +24,8 @@ class DBHelper {
   final List<Map<String, dynamic>> _inMemoryPhysique = [];
   final List<Map<String, dynamic>> _inMemoryWeeklyWeights = [];
   final List<Map<String, dynamic>> _inMemoryWorkoutLogs = [];
+  final List<Map<String, dynamic>> _inMemoryWorkoutSessions = [];
+  final Map<String, Map<String, dynamic>> _inMemoryPersonalRecords = {};
 
   DBHelper._init();
 
@@ -33,7 +36,7 @@ class DBHelper {
     if (isMockEnvironment) return null;
     if (_database != null) return _database!;
     try {
-      _database = await _initDB('growth_tracker_v3.db');
+      _database = await _initDB('growth_tracker_v4.db');
       return _database!;
     } catch (_) {
       return null;
@@ -46,7 +49,7 @@ class DBHelper {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _createDB,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 3) {
@@ -132,6 +135,41 @@ class DBHelper {
                 durationMinutes INTEGER NOT NULL,
                 notes TEXT,
                 completedAt TEXT NOT NULL
+              )
+            ''');
+          } catch (_) {}
+        }
+        if (oldVersion < 5) {
+          try {
+            await db.execute('''
+              CREATE TABLE IF NOT EXISTS workout_sessions (
+                id TEXT PRIMARY KEY,
+                userId TEXT NOT NULL,
+                date TEXT NOT NULL,
+                dayName TEXT NOT NULL,
+                workoutTemplateId TEXT,
+                workoutVersion INTEGER NOT NULL,
+                workoutName TEXT NOT NULL,
+                muscleGroup TEXT NOT NULL,
+                startTime TEXT NOT NULL,
+                endTime TEXT,
+                durationMinutes INTEGER NOT NULL,
+                exercises TEXT NOT NULL,
+                status TEXT NOT NULL,
+                comments TEXT,
+                createdAt TEXT NOT NULL
+              )
+            ''');
+            await db.execute('''
+              CREATE TABLE IF NOT EXISTS personal_records (
+                exerciseName TEXT PRIMARY KEY,
+                heaviestWeightKg REAL NOT NULL,
+                heaviestWeightDate TEXT,
+                maxReps INTEGER NOT NULL,
+                maxRepsWeightKg REAL NOT NULL,
+                maxRepsDate TEXT,
+                maxDurationSeconds INTEGER NOT NULL,
+                maxDurationDate TEXT
               )
             ''');
           } catch (_) {}
@@ -280,6 +318,37 @@ class DBHelper {
         durationMinutes INTEGER NOT NULL,
         notes TEXT,
         completedAt TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS workout_sessions (
+        id TEXT PRIMARY KEY,
+        userId TEXT NOT NULL,
+        date TEXT NOT NULL,
+        dayName TEXT NOT NULL,
+        workoutTemplateId TEXT,
+        workoutVersion INTEGER NOT NULL,
+        workoutName TEXT NOT NULL,
+        muscleGroup TEXT NOT NULL,
+        startTime TEXT NOT NULL,
+        endTime TEXT,
+        durationMinutes INTEGER NOT NULL,
+        exercises TEXT NOT NULL,
+        status TEXT NOT NULL,
+        comments TEXT,
+        createdAt TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS personal_records (
+        exerciseName TEXT PRIMARY KEY,
+        heaviestWeightKg REAL NOT NULL,
+        heaviestWeightDate TEXT,
+        maxReps INTEGER NOT NULL,
+        maxRepsWeightKg REAL NOT NULL,
+        maxRepsDate TEXT,
+        maxDurationSeconds INTEGER NOT NULL,
+        maxDurationDate TEXT
       )
     ''');
   }
@@ -694,5 +763,131 @@ class DBHelper {
       maps = await db.query('workout_history_logs', orderBy: 'date DESC, id DESC');
     }
     return maps.map((e) => WorkoutHistoryLog.fromMap(e)).toList();
+  }
+
+  // --- WORKOUT SESSIONS (Immutable Historical Executed Logs) ---
+  Future<void> saveWorkoutSession(WorkoutSession session) async {
+    final map = session.toMap();
+    final db = await database;
+    if (db == null) {
+      _inMemoryWorkoutSessions.removeWhere((e) => e['id'] == session.id);
+      _inMemoryWorkoutSessions.insert(0, map);
+    } else {
+      await db.insert('workout_sessions', map, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    // Automatically update Personal Records
+    for (final ex in session.exercises) {
+      for (final s in ex.actualSets) {
+        if (s.isCompleted) {
+          await _updatePersonalRecordIfBetter(
+            exerciseName: ex.exerciseName,
+            weightKg: s.weightKg,
+            reps: s.reps,
+            durationSeconds: s.durationSeconds,
+            date: session.startTime,
+          );
+        }
+      }
+    }
+  }
+
+  Future<List<WorkoutSession>> getWorkoutSessions() async {
+    final db = await database;
+    List<Map<String, dynamic>> maps;
+    if (db == null) {
+      maps = List.from(_inMemoryWorkoutSessions);
+    } else {
+      maps = await db.query('workout_sessions', orderBy: 'date DESC, createdAt DESC');
+    }
+    return maps.map((e) => WorkoutSession.fromMap(e)).toList();
+  }
+
+  Future<List<WorkoutSession>> getWorkoutSessionsForExercise(String exerciseName) async {
+    final all = await getWorkoutSessions();
+    return all.where((s) => s.exercises.any((e) => e.exerciseName.toLowerCase() == exerciseName.toLowerCase())).toList();
+  }
+
+  Future<WorkoutSession?> getLatestWorkoutSessionForExercise(String exerciseName) async {
+    final list = await getWorkoutSessionsForExercise(exerciseName);
+    if (list.isEmpty) return null;
+    return list.first;
+  }
+
+  Future<Map<String, PersonalRecord>> getPersonalRecords() async {
+    final db = await database;
+    List<Map<String, dynamic>> maps;
+    if (db == null) {
+      maps = _inMemoryPersonalRecords.values.toList();
+    } else {
+      maps = await db.query('personal_records');
+    }
+    final res = <String, PersonalRecord>{};
+    for (var m in maps) {
+      final pr = PersonalRecord.fromMap(m);
+      res[pr.exerciseName] = pr;
+    }
+    return res;
+  }
+
+  Future<void> savePersonalRecord(PersonalRecord pr) async {
+    final map = pr.toMap();
+    final db = await database;
+    if (db == null) {
+      _inMemoryPersonalRecords[pr.exerciseName] = map;
+      return;
+    }
+    await db.insert('personal_records', map, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> _updatePersonalRecordIfBetter({
+    required String exerciseName,
+    required double weightKg,
+    required int reps,
+    required int durationSeconds,
+    required DateTime date,
+  }) async {
+    final records = await getPersonalRecords();
+    final existing = records[exerciseName];
+
+    double newHeaviestWeight = existing?.heaviestWeightKg ?? 0.0;
+    DateTime? newHeaviestDate = existing?.heaviestWeightDate;
+    int newMaxReps = existing?.maxReps ?? 0;
+    double newMaxRepsWeight = existing?.maxRepsWeightKg ?? 0.0;
+    DateTime? newMaxRepsDate = existing?.maxRepsDate;
+    int newMaxDuration = existing?.maxDurationSeconds ?? 0;
+    DateTime? newMaxDurationDate = existing?.maxDurationDate;
+
+    bool changed = false;
+    if (weightKg > newHeaviestWeight) {
+      newHeaviestWeight = weightKg;
+      newHeaviestDate = date;
+      changed = true;
+    }
+    if (reps > newMaxReps) {
+      newMaxReps = reps;
+      newMaxRepsWeight = weightKg;
+      newMaxRepsDate = date;
+      changed = true;
+    }
+    if (durationSeconds > newMaxDuration) {
+      newMaxDuration = durationSeconds;
+      newMaxDurationDate = date;
+      changed = true;
+    }
+
+    if (changed || existing == null) {
+      final updated = PersonalRecord(
+        exerciseName: exerciseName,
+        heaviestWeightKg: newHeaviestWeight,
+        heaviestWeightDate: newHeaviestDate ?? date,
+        maxReps: newMaxReps,
+        maxRepsWeightKg: newMaxRepsWeight,
+        maxRepsDate: newMaxRepsDate ?? date,
+        maxDurationSeconds: newMaxDuration,
+        maxDurationDate: newMaxDurationDate ?? date,
+      );
+      await savePersonalRecord(updated);
+    }
   }
 }

@@ -330,6 +330,8 @@ class ProfileService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> saveProfile() => _saveProfile();
+
   Future<void> _saveProfile() async {
     try {
       final prefs = await SharedPreferences.getInstance();
