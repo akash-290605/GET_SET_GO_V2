@@ -11,6 +11,8 @@ class ProfileService extends ChangeNotifier {
   static const String _nutritionTargetKey = 'gsg_nutrition_target_v3';
   static const String _weightHistoryKey = 'gsg_weight_history_v3';
 
+  String currentUid = '';
+
   // Profile Fields
   String name = 'Akash K';
   String get userName => name;
@@ -195,6 +197,51 @@ class ProfileService extends ChangeNotifier {
     }
   }
 
+  Future<void> loadForUser(String uid) async {
+    currentUid = uid;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userProfileKey = 'gsg_user_profile_$uid';
+      final profileStr = prefs.getString(userProfileKey) ?? prefs.getString(_profileKey);
+      if (profileStr != null) {
+        final map = json.decode(profileStr) as Map<String, dynamic>;
+        name = map['name'] ?? name;
+        age = (map['age'] as num?)?.toInt() ?? age;
+        gender = map['gender'] ?? gender;
+        heightCm = (map['heightCm'] as num?)?.toDouble() ?? heightCm;
+        weightKg = (map['weightKg'] as num?)?.toDouble() ?? weightKg;
+        targetWeightKg = (map['targetWeightKg'] as num?)?.toDouble() ?? targetWeightKg;
+        fitnessGoal = map['fitnessGoal'] ?? fitnessGoal;
+        activityLevel = map['activityLevel'] ?? activityLevel;
+        availableEquipment = map['availableEquipment'] ?? availableEquipment;
+        currencySymbol = map['currencySymbol'] ?? currencySymbol;
+        monthlyBudgetCap = (map['monthlyBudgetCap'] as num?)?.toDouble() ?? monthlyBudgetCap;
+        preferredUnit = map['preferredUnit'] ?? preferredUnit;
+        strictGoalTitle = map['strictGoalTitle'] ?? strictGoalTitle;
+        isStrictMode = map['isStrictMode'] ?? isStrictMode;
+        dailyStepTarget = (map['dailyStepTarget'] as num?)?.toInt() ?? dailyStepTarget;
+        dailyActiveTimeMinutesTarget = (map['dailyActiveTimeMinutesTarget'] as num?)?.toInt() ?? dailyActiveTimeMinutesTarget;
+        dailyWaterIntakeMlTarget = (map['dailyWaterIntakeMlTarget'] as num?)?.toInt() ?? dailyWaterIntakeMlTarget;
+        todaySteps = (map['todaySteps'] as num?)?.toInt() ?? todaySteps;
+        todayActiveTimeMinutes = (map['todayActiveTimeMinutes'] as num?)?.toInt() ?? todayActiveTimeMinutes;
+        todayWaterIntakeMl = (map['todayWaterIntakeMl'] as num?)?.toInt() ?? todayWaterIntakeMl;
+
+        if (map['weeklySteps'] != null) {
+          weeklySteps = List<int>.from(map['weeklySteps']);
+        }
+        if (map['weeklyActiveMinutes'] != null) {
+          weeklyActiveMinutes = List<int>.from(map['weeklyActiveMinutes']);
+        }
+        if (map['weeklyWaterMl'] != null) {
+          weeklyWaterMl = List<int>.from(map['weeklyWaterMl']);
+        }
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('ProfileService loadForUser error: $e');
+    }
+  }
+
   Future<void> updateProfile({
     String? name,
     int? age,
@@ -361,6 +408,9 @@ class ProfileService extends ChangeNotifier {
         'weeklyWaterMl': weeklyWaterMl,
       };
       await prefs.setString(_profileKey, json.encode(map));
+      if (currentUid.isNotEmpty) {
+        await prefs.setString('gsg_user_profile_$currentUid', json.encode(map));
+      }
     } catch (e) {
       debugPrint('Error saving profile: $e');
     }

@@ -1,21 +1,3 @@
 {
-  "java.configuration.updateBuildConfiguration": "interactive",
-  "codemetrics.basics.DiagnosticsEnabled": false,
-  "codemetrics.basics.ComplexityLevelDiagnostics": "Off",
-  "files.exclude": {
-    "**/.git": true,
-    "**/.svn": true,
-    "**/.hg": true,
-    "**/CVS": true,
-    "**/.DS_Store": true,
-    "**/Thumbs.db": true,
-    "**/build": true,
-    "**/.dart_tool": true
-  },
-  "search.exclude": {
-    "**/build": true,
-    "**/.dart_tool": true
-  },
-  "javascript.validate.enable": false,
-  "typescript.validate.enable": false
+    "java.configuration.updateBuildConfiguration": "interactive"
 }
