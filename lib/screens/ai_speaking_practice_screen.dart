@@ -48,8 +48,8 @@ class _AiSpeakingPracticeScreenState extends State<AiSpeakingPracticeScreen>
   // Hardware & Permission Controls
   bool _isCameraOn = true;
   bool _isMicOn = true;
-  final bool _isMicPermissionDenied = false;
-  final bool _isCameraPermissionDenied = false;
+  bool _isMicPermissionDenied = false;
+  bool _isCameraPermissionDenied = false;
   bool _isSaveVideo = false;
 
   // Recording State
