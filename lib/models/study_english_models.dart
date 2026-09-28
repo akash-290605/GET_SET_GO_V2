@@ -1,7 +1,47 @@
 enum StudyPriority { high, medium, low }
 enum StudySessionStatus { planned, inProgress, completed, skipped }
 enum VocabularyStatus { learned, needRevision, difficult }
-enum EnglishLevel { beginner, intermediate, advanced }
+
+enum EnglishLevel {
+  beginner,
+  elementary,
+  intermediate,
+  upperIntermediate,
+  advanced,
+}
+
+extension EnglishLevelExt on EnglishLevel {
+  String get label {
+    switch (this) {
+      case EnglishLevel.beginner:
+        return 'Beginner';
+      case EnglishLevel.elementary:
+        return 'Elementary';
+      case EnglishLevel.intermediate:
+        return 'Intermediate';
+      case EnglishLevel.upperIntermediate:
+        return 'Upper Intermediate';
+      case EnglishLevel.advanced:
+        return 'Advanced';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case EnglishLevel.beginner:
+        return 'Simple sentences and slower, clear conversation.';
+      case EnglishLevel.elementary:
+        return 'Everyday conversational basics and practical vocabulary.';
+      case EnglishLevel.intermediate:
+        return 'Normal conversational English with standard flow.';
+      case EnglishLevel.upperIntermediate:
+        return 'Fluent speech, active idioms, and structured reasoning.';
+      case EnglishLevel.advanced:
+        return 'Complex vocabulary, debates, professional nuances, and in-depth discussions.';
+    }
+  }
+}
+
 
 class StudyTopic {
   final String id;

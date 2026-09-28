@@ -227,7 +227,9 @@ class DailyReminderService {
       }
       final studyService = StudyEnglishService.instance;
       studyCompleted = todayStudyMins >= studyService.dailyStudyTargetMinutes || todayStudyMins >= 60;
-      englishCompleted = studyService.grammarQuizzesTaken > 0 || studyService.totalCompletedTopics > 0;
+      final int todaySpeakingMins = studyService.todaySpeakingMinutes;
+      final int targetSpeakingMins = studyService.dailySpeakingGoalMinutes;
+      englishCompleted = todaySpeakingMins >= targetSpeakingMins || (todaySpeakingMins > 0 && todaySpeakingMins >= (targetSpeakingMins * 0.7)) || studyService.grammarQuizzesTaken > 0 || studyService.totalCompletedTopics > 0;
     } catch (_) {}
 
     // Compile Active Goal Checklists
@@ -281,10 +283,15 @@ class DailyReminderService {
     }
 
     // English
+    final int todaySpeakingMins = StudyEnglishService.instance.todaySpeakingMinutes;
+    final int targetSpeakingMins = StudyEnglishService.instance.dailySpeakingGoalMinutes;
+    final String englishStatus = StudyEnglishService.instance.todayGoalStatus;
+    final String englishEntryTitle = 'English ($todaySpeakingMins / $targetSpeakingMins min - $englishStatus)';
+
     if (englishCompleted) {
-      completedTitles.add('English Practice');
+      completedTitles.add(englishEntryTitle);
     } else {
-      remainingTitles.add('English Practice');
+      remainingTitles.add(englishEntryTitle);
     }
 
     final totalGoals = completedTitles.length + remainingTitles.length;
@@ -312,10 +319,13 @@ You completed all of today's goals.
 🏋️ Workout: Completed ($workoutName)
 📸 Body tracking: ${bodyPhotoCompleted ? 'Completed' : 'Logged'}
 📚 Study: Completed
-🇬🇧 English: Completed
+🇬🇧 English:
+Speaking: $todaySpeakingMins / $targetSpeakingMins minutes
+Status: $englishStatus
 
 All goals completed for today.
 Keep the streak going tomorrow!''';
+
     } else if (completedCount > 0) {
       category = ReminderStatusCategory.partialCompleted;
       shortTitle = '⏰ GET SET GO — 9 PM Daily Check';

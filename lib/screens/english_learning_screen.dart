@@ -4,6 +4,10 @@ import 'package:flutter/services.dart';
 import '../models/study_english_models.dart';
 import '../services/study_english_service.dart';
 import '../services/theme_service.dart';
+import 'ai_speaking_practice_screen.dart';
+import 'live_conversation_screen.dart';
+import 'speaking_history_progress_screen.dart';
+
 
 class EnglishLearningScreen extends StatefulWidget {
   const EnglishLearningScreen({super.key});
@@ -157,34 +161,246 @@ A habit loop consists of three interconnected components: the cue (trigger), the
             Text('English Mastery Suite', style: TextStyle(fontWeight: FontWeight.w900)),
           ],
         ),
-        bottom: TabBar(
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.insights_rounded),
+            tooltip: 'Speaking Progress & History',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SpeakingHistoryProgressScreen()),
+              );
+            },
+          ),
+        ],
+      ),
+      body: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) => [
+          // 1. Requirement 28: ENGLISH MASTERY DASHBOARD
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: _buildEnglishMasteryDashboardCard(theme),
+            ),
+          ),
+
+          // 2. Requirement 29: SST Foundation Modules TabBar (Pinned)
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _SliverTabBarDelegate(
+              TabBar(
+                controller: _tabController,
+                isScrollable: true,
+                indicatorColor: AppColors.primaryGlow,
+                labelColor: AppColors.primaryGlow,
+                unselectedLabelColor: theme.hintColor,
+                tabAlignment: TabAlignment.start,
+                tabs: const [
+                  Tab(icon: Icon(Icons.menu_book_rounded, size: 18), text: 'Vocabulary Bank'),
+                  Tab(icon: Icon(Icons.quiz_rounded, size: 18), text: 'Grammar Quizzes'),
+                  Tab(icon: Icon(Icons.record_voice_over_rounded, size: 18), text: 'AI Speaking & STT'),
+                  Tab(icon: Icon(Icons.draw_rounded, size: 18), text: 'AI Writing Assistant'),
+                  Tab(icon: Icon(Icons.auto_stories_rounded, size: 18), text: 'Reading Passages'),
+                ],
+              ),
+              theme.scaffoldBackgroundColor,
+            ),
+          ),
+        ],
+        body: TabBarView(
           controller: _tabController,
-          isScrollable: true,
-          indicatorColor: AppColors.primaryGlow,
-          labelColor: AppColors.primaryGlow,
-          unselectedLabelColor: theme.hintColor,
-          tabAlignment: TabAlignment.start,
-          tabs: const [
-            Tab(icon: Icon(Icons.menu_book_rounded, size: 18), text: 'Vocabulary Bank'),
-            Tab(icon: Icon(Icons.quiz_rounded, size: 18), text: 'Grammar Quizzes'),
-            Tab(icon: Icon(Icons.record_voice_over_rounded, size: 18), text: 'AI Speaking & STT'),
-            Tab(icon: Icon(Icons.draw_rounded, size: 18), text: 'AI Writing Assistant'),
-            Tab(icon: Icon(Icons.auto_stories_rounded, size: 18), text: 'Reading Passages'),
+          children: [
+            _buildVocabularyTab(),
+            _buildGrammarTab(),
+            _buildSpeakingTab(),
+            _buildWritingTab(),
+            _buildReadingTab(),
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
+    );
+  }
+
+  // ================= REQUIREMENT 28: ENGLISH MASTERY DASHBOARD =================
+  Widget _buildEnglishMasteryDashboardCard(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1E1B4B), Color(0xFF0F172A)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.primaryGlow.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.15),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildVocabularyTab(),
-          _buildGrammarTab(),
-          _buildSpeakingTab(),
-          _buildWritingTab(),
-          _buildReadingTab(),
+          // Header: 🇬🇧 ENGLISH MASTERY
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Text('🇬🇧', style: TextStyle(fontSize: 20)),
+                  SizedBox(width: 8),
+                  Text(
+                    'ENGLISH MASTERY',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.primaryGlow.withValues(alpha: 0.4)),
+                ),
+                child: const Text(
+                  'AI SPEAKING COACH',
+                  style: TextStyle(
+                    color: AppColors.primaryGlow,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10.5,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Streak, Speaking Time, Practices Count (Requirements 23 & 28)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildDashboardMetric('🔥 Streak', '${service.currentSpeakingStreakDays} days', AppColors.accentRose),
+              Container(width: 1, height: 32, color: Colors.white24),
+              _buildDashboardMetric('🗣️ Speaking', service.totalSpeakingFormatted, AppColors.accentBlue),
+              Container(width: 1, height: 32, color: Colors.white24),
+              _buildDashboardMetric('📚 Practices', '${service.totalPracticesAndConversationsCount}', AppColors.accentGreen),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Action Buttons:
+          // [🎥 Speaking Practice]
+          // [🗣️ Live Conversation]
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AiSpeakingPracticeScreen()),
+                    );
+                  },
+                  icon: const Icon(Icons.videocam_rounded, size: 18),
+                  label: const Text('🎥 Speaking Practice', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accentBlue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LiveConversationScreen(initialMode: LiveConversationMode.general)),
+                    );
+                  },
+                  icon: const Icon(Icons.record_voice_over_rounded, size: 18),
+                  label: const Text('🗣️ Live Conversation', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // [💼 Interview Practice]
+          // [📊 My Progress]
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white30),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LiveConversationScreen(initialMode: LiveConversationMode.interview)),
+                    );
+                  },
+                  icon: const Icon(Icons.business_center_rounded, size: 18, color: AppColors.accentAmber),
+                  label: const Text('💼 Interview Practice', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white30),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SpeakingHistoryProgressScreen()),
+                    );
+                  },
+                  icon: const Icon(Icons.insights_rounded, size: 18, color: AppColors.accentGreen),
+                  label: const Text('📊 My Progress', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
+
+  Widget _buildDashboardMetric(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(value, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+      ],
+    );
+  }
+
 
   // ================= 1. VOCABULARY BANK =================
   Widget _buildVocabularyTab() {
@@ -729,28 +945,30 @@ A habit loop consists of three interconnected components: the cue (trigger), the
                   children: [
                     const Text('Proficiency Level: ', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
                     const SizedBox(width: 8),
-                    ChoiceChip(
-                      label: const Text('Beginner'),
-                      selected: _speakingLevel == EnglishLevel.beginner,
-                      onSelected: (s) => setState(() => _speakingLevel = EnglishLevel.beginner),
-                    ),
-                    const SizedBox(width: 6),
-                    ChoiceChip(
-                      label: const Text('Intermediate'),
-                      selected: _speakingLevel == EnglishLevel.intermediate,
-                      onSelected: (s) => setState(() => _speakingLevel = EnglishLevel.intermediate),
-                    ),
-                    const SizedBox(width: 6),
-                    ChoiceChip(
-                      label: const Text('Advanced'),
-                      selected: _speakingLevel == EnglishLevel.advanced,
-                      onSelected: (s) => setState(() => _speakingLevel = EnglishLevel.advanced),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: EnglishLevel.values.map((lvl) {
+                            final isSel = _speakingLevel == lvl;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: ChoiceChip(
+                                label: Text(lvl.label),
+                                selected: isSel,
+                                onSelected: (s) => setState(() => _speakingLevel = lvl),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ],
             ),
           ),
+
           const SizedBox(height: 16),
 
           // Live Speech Recording Card
@@ -1201,3 +1419,29 @@ A habit loop consists of three interconnected components: the cue (trigger), the
     );
   }
 }
+
+class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
+  final TabBar tabBar;
+  final Color backgroundColor;
+
+  _SliverTabBarDelegate(this.tabBar, this.backgroundColor);
+
+  @override
+  double get minExtent => tabBar.preferredSize.height;
+  @override
+  double get maxExtent => tabBar.preferredSize.height;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      color: backgroundColor,
+      child: tabBar,
+    );
+  }
+
+  @override
+  bool shouldRebuild(_SliverTabBarDelegate oldDelegate) {
+    return false;
+  }
+}
+
