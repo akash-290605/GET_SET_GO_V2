@@ -11,15 +11,12 @@ permissions:
   id-token: write
 
 concurrency:
-  group: "pages"
+  group: "deployment"
   cancel-in-progress: true
 
 jobs:
-  # JOB 1: Ultra-Fast Web Build & Deploy to GitHub Pages (Takes ~60-90s)
+  # JOB 1: Ultra-Fast Web Build & Deploy to GitHub Pages
   deploy-web:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Code
@@ -35,19 +32,13 @@ jobs:
         run: flutter pub get
 
       - name: 🌐 Build Flutter Web
-        run: flutter build web --release --base-href "/GET_SET_GO/"
+        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
 
-      - name: 🚀 Setup GitHub Pages
-        uses: actions/configure-pages@v4
-
-      - name: 📦 Upload Web Pages Artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: 🚀 Deploy to GitHub Pages (gh-pages branch)
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: build/web
-
-      - name: 🌍 Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build/web
 
   # JOB 2: Android APK Build in Parallel
   build-apk:
