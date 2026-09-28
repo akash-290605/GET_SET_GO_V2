@@ -52,7 +52,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             behavior: SnackBarBehavior.floating,
           ),
         );
-        Navigator.pop(context);
+        if (Navigator.canPop(context)) Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
@@ -89,7 +89,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             behavior: SnackBarBehavior.floating,
           ),
         );
-        Navigator.pop(context);
+        if (Navigator.canPop(context)) Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
@@ -331,7 +331,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                   TextButton(
                     onPressed: () async {
                       await AuthService.instance.continueAsGuest();
-                      if (context.mounted) Navigator.pop(context);
+                      if (context.mounted && Navigator.canPop(context)) Navigator.pop(context);
                     },
                     child: Text('Continue as Guest (Local Offline Mode)', style: TextStyle(color: theme.hintColor, fontSize: 12.5)),
                   ),

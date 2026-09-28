@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/study_english_models.dart';
+import '../services/gemini_service.dart';
 import '../services/study_english_service.dart';
 import '../services/theme_service.dart';
 import 'ai_speaking_practice_screen.dart';
@@ -148,6 +149,63 @@ A habit loop consists of three interconnected components: the cue (trigger), the
     if (mounted) setState(() {});
   }
 
+  void _openGeminiApiKeyDialog() {
+    final geminiService = GeminiService.instance;
+    final ctrl = TextEditingController(text: geminiService.customApiKey ?? '');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.auto_awesome, color: AppColors.primaryGlow, size: 20),
+            SizedBox(width: 8),
+            Text('Gemini AI API Key'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Add your Google AI Studio API key to enable live Gemini 1.5 Flash speaking analysis, live conversations, and writing evaluations.\n\nWithout a key, intelligent local evaluation runs automatically.',
+              style: TextStyle(fontSize: 12.5),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Google AI Studio API Key',
+                hintText: 'AIzaSy...',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            onPressed: () async {
+              final nav = Navigator.of(ctx);
+              final messenger = ScaffoldMessenger.of(context);
+              await geminiService.setApiKey(ctrl.text.trim());
+              nav.pop();
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Gemini API key updated successfully!')),
+              );
+            },
+            child: const Text('Save Key', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -162,6 +220,11 @@ A habit loop consists of three interconnected components: the cue (trigger), the
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.key_rounded),
+            tooltip: 'Gemini API Key',
+            onPressed: _openGeminiApiKeyDialog,
+          ),
           IconButton(
             icon: const Icon(Icons.insights_rounded),
             tooltip: 'Speaking Progress & History',

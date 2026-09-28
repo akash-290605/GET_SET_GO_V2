@@ -4,6 +4,7 @@ import '../models/study_english_models.dart';
 import '../services/gemini_service.dart';
 import '../services/study_english_service.dart';
 import '../services/theme_service.dart';
+import '../services/web_media_service.dart';
 import '../widgets/glass_card.dart';
 import 'speaking_history_progress_screen.dart';
 
@@ -48,8 +49,8 @@ class _AiSpeakingPracticeScreenState extends State<AiSpeakingPracticeScreen>
   // Hardware & Permission Controls
   bool _isCameraOn = true;
   bool _isMicOn = true;
-  bool _isMicPermissionDenied = false;
-  bool _isCameraPermissionDenied = false;
+  final bool _isMicPermissionDenied = false;
+  final bool _isCameraPermissionDenied = false;
   bool _isSaveVideo = false;
 
   // Recording State
@@ -85,6 +86,10 @@ class _AiSpeakingPracticeScreenState extends State<AiSpeakingPracticeScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
+
+    if (_isCameraOn) {
+      WebMediaService.instance.initCamera();
+    }
   }
 
   @override
@@ -94,6 +99,9 @@ class _AiSpeakingPracticeScreenState extends State<AiSpeakingPracticeScreen>
     _waveAnimCtrl.dispose();
     _customTopicCtrl.dispose();
     _transcriptEditCtrl.dispose();
+    WebMediaService.instance.stopCamera();
+    WebMediaService.instance.stopRecording();
+    WebMediaService.instance.stopSpeaking();
     super.dispose();
   }
 
@@ -105,7 +113,7 @@ class _AiSpeakingPracticeScreenState extends State<AiSpeakingPracticeScreen>
   }
 
   // --- Recording Actions ---
-  void _startRecording() {
+  void _startRecording() async {
     if (!_isMicOn || _isMicPermissionDenied) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -124,7 +132,19 @@ class _AiSpeakingPracticeScreenState extends State<AiSpeakingPracticeScreen>
       _playbackPositionSeconds = 0;
       _analysisResult = null;
       _userSpeech = '';
+      _transcriptEditCtrl.text = '';
     });
+
+    // Start real Web Media recording and continuous speech recognition
+    await WebMediaService.instance.startRecording(
+      onLiveTranscript: (liveText) {
+        if (!mounted) return;
+        setState(() {
+          _userSpeech = liveText;
+          _transcriptEditCtrl.text = liveText;
+        });
+      },
+    );
 
     _recordingTimer?.cancel();
     _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -136,21 +156,28 @@ class _AiSpeakingPracticeScreenState extends State<AiSpeakingPracticeScreen>
     });
   }
 
-  void _stopRecording() {
+  void _stopRecording() async {
     _recordingTimer?.cancel();
-    if (_recordingSeconds < 3) {
+    await WebMediaService.instance.stopRecording();
+
+    if (_recordingSeconds < 2) {
       setState(() {
         _isRecording = false;
         _recordingSeconds = 0;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Recording was too short. Speak for at least a few seconds.')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Recording was too short. Speak for at least a few seconds.')),
+        );
+      }
       return;
     }
 
-    // Generate or transcribe speech based on topic
-    final transcript = _generateRealisticTranscriptForTopic(_currentEffectiveTopic);
+    // If speech recognition didn't capture or was silent, fall back to realistic sample
+    String transcript = _userSpeech.trim();
+    if (transcript.isEmpty) {
+      transcript = _generateRealisticTranscriptForTopic(_currentEffectiveTopic);
+    }
 
     setState(() {
       _isRecording = false;
@@ -163,6 +190,8 @@ class _AiSpeakingPracticeScreenState extends State<AiSpeakingPracticeScreen>
   void _resetRecording() {
     _recordingTimer?.cancel();
     _playbackTimer?.cancel();
+    WebMediaService.instance.stopSpeaking();
+    WebMediaService.instance.stopRecording();
     setState(() {
       _isRecording = false;
       _hasRecorded = false;
@@ -202,6 +231,7 @@ class _AiSpeakingPracticeScreenState extends State<AiSpeakingPracticeScreen>
   void _togglePlayback() {
     if (_isPlaying) {
       _playbackTimer?.cancel();
+      WebMediaService.instance.stopSpeaking();
       setState(() => _isPlaying = false);
     } else {
       setState(() {
@@ -210,6 +240,10 @@ class _AiSpeakingPracticeScreenState extends State<AiSpeakingPracticeScreen>
           _playbackPositionSeconds = 0;
         }
       });
+      final textToSpeak = _userSpeech.isNotEmpty ? _userSpeech : _transcriptEditCtrl.text;
+      if (textToSpeak.isNotEmpty) {
+        WebMediaService.instance.speak(textToSpeak);
+      }
       _playbackTimer?.cancel();
       _playbackTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
         if (!mounted) return;
@@ -217,6 +251,7 @@ class _AiSpeakingPracticeScreenState extends State<AiSpeakingPracticeScreen>
           setState(() => _playbackPositionSeconds++);
         } else {
           timer.cancel();
+          WebMediaService.instance.stopSpeaking();
           setState(() {
             _isPlaying = false;
             _playbackPositionSeconds = 0;
@@ -300,6 +335,62 @@ class _AiSpeakingPracticeScreenState extends State<AiSpeakingPracticeScreen>
     return 'I am practicing my English speech on $topic. Yesterday I am thinking about how to improve my speaking fluency and reduce filler words like um and actually. In my opinion practice is very very good for speaking confidence.';
   }
 
+  void _openGeminiApiKeyDialog() {
+    final ctrl = TextEditingController(text: _geminiService.customApiKey ?? '');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.auto_awesome, color: AppColors.primaryGlow, size: 20),
+            SizedBox(width: 8),
+            Text('Gemini AI API Key'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Add your Google AI Studio API key to enable live Gemini 1.5 Flash speech analysis.\n\nWithout a key, intelligent local analysis is used automatically.',
+              style: TextStyle(fontSize: 12.5),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Google AI Studio API Key',
+                hintText: 'AIzaSy...',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            onPressed: () async {
+              final nav = Navigator.of(ctx);
+              final messenger = ScaffoldMessenger.of(context);
+              await _geminiService.setApiKey(ctrl.text.trim());
+              nav.pop();
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Gemini API key updated successfully!')),
+              );
+            },
+            child: const Text('Save Key', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = ThemeService.instance.isDarkMode(context);
@@ -315,6 +406,11 @@ class _AiSpeakingPracticeScreenState extends State<AiSpeakingPracticeScreen>
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.key_rounded),
+            tooltip: 'Gemini API Key',
+            onPressed: _openGeminiApiKeyDialog,
+          ),
           IconButton(
             icon: const Icon(Icons.history_rounded),
             tooltip: 'Speaking History',
@@ -470,7 +566,17 @@ class _AiSpeakingPracticeScreenState extends State<AiSpeakingPracticeScreen>
                   Text('Camera ${_isCameraOn ? 'ON' : 'OFF'}', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
                   Switch(
                     value: _isCameraOn,
-                    onChanged: _isRecording ? null : (v) => setState(() => _isCameraOn = v),
+                    onChanged: _isRecording
+                        ? null
+                        : (v) async {
+                            setState(() => _isCameraOn = v);
+                            if (v) {
+                              await WebMediaService.instance.initCamera();
+                            } else {
+                              WebMediaService.instance.stopCamera();
+                            }
+                            if (mounted) setState(() {});
+                          },
                     activeThumbColor: AppColors.accentBlue,
                   ),
                 ],
@@ -743,35 +849,50 @@ class _AiSpeakingPracticeScreenState extends State<AiSpeakingPracticeScreen>
   }
 
   Widget _buildCameraViewfinderBackdrop() {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: RadialGradient(
-          center: Alignment.center,
-          radius: 1.0,
-          colors: [Color(0xFF1E293B), Color(0xFF090D16)],
-        ),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.camera_alt_outlined,
-              size: 56,
-              color: Colors.white.withValues(alpha: 0.15),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'CAMERA ACTIVE',
-              style: TextStyle(
-                fontSize: 11,
-                letterSpacing: 2,
-                fontWeight: FontWeight.w800,
-                color: Colors.white.withValues(alpha: 0.25),
+    if (_isCameraOn) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          WebMediaService.instance.buildCameraPreviewWidget(),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withValues(alpha: 0.45),
+                  Colors.transparent,
+                  Colors.black.withValues(alpha: 0.55),
+                ],
+                stops: const [0.0, 0.45, 1.0],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
+      );
+    }
+    return Container(
+      color: const Color(0xFF090D16),
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.videocam_off_rounded,
+            size: 56,
+            color: Colors.white.withValues(alpha: 0.15),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'CAMERA TURNED OFF',
+            style: TextStyle(
+              fontSize: 11,
+              letterSpacing: 2,
+              fontWeight: FontWeight.w800,
+              color: Colors.white.withValues(alpha: 0.25),
+            ),
+          ),
+        ],
       ),
     );
   }

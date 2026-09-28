@@ -19,6 +19,7 @@ import 'screens/study_screen.dart';
 import 'screens/english_learning_screen.dart';
 import 'screens/discipline_goals_screen.dart';
 import 'screens/vitals_activity_screen.dart';
+import 'screens/auth_screen.dart';
 import 'widgets/account_cloud_modal.dart';
 import 'widgets/global_search_dialog.dart';
 import 'widgets/live_animated_background.dart';
@@ -61,15 +62,21 @@ class GetSetGoApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: ThemeService.instance,
+      listenable: Listenable.merge([
+        ThemeService.instance,
+        AuthService.instance,
+      ]),
       builder: (context, _) {
+        final auth = AuthService.instance;
         return MaterialApp(
           title: 'GET SET GO',
           debugShowCheckedModeBanner: false,
           theme: ThemeService.instance.lightTheme,
           darkTheme: ThemeService.instance.darkTheme,
           themeMode: ThemeService.instance.flutterThemeMode,
-          home: const MainNavigationShell(),
+          home: auth.currentUser == null
+              ? const AuthScreen()
+              : const MainNavigationShell(),
         );
       },
     );
