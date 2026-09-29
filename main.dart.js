@@ -115279,25 +115279,24 @@ break
 case 5:return A.q(null,r)
 case 1:return A.p(p.at(-1),r)}})
 return A.r($async$ob,r)},
-uK(){var s=0,r=A.t(t.H),q=1,p=[],o=this,n,m,l,k
+uK(){var s=0,r=A.t(t.H),q=1,p=[],o=this,n,m,l
 var $async$uK=A.u(function(a,b){if(a===1){p.push(b)
 s=q}for(;;)switch(s){case 0:q=3
-n="guest_"
-o.b=A.aaH("guest",null,"Guest Athlete","guest@getsetgo.app",null,n)
+o.b=A.aaH("guest",null,"Guest Athlete","guest@getsetgo.app",null,"guest_")
 o.c=!0
 s=6
-return A.k($.ca().nE(n),$async$uK)
+return A.k($.ca().nE("guest_"),$async$uK)
 case 6:s=7
 return A.k(A.dY(),$async$uK)
-case 7:m=b
+case 7:n=b
 s=8
-return A.k(m.fz("String","gsg_auth_user_v5",B.a5.dN(o.b.cO())),$async$uK)
+return A.k(n.fz("String","gsg_auth_user_v5",B.a5.dN(o.b.cO())),$async$uK)
 case 8:o.a_()
 q=1
 s=5
 break
 case 3:q=2
-k=p.pop()
+l=p.pop()
 A.cQ().$1("Guest login error: ")
 s=5
 break
