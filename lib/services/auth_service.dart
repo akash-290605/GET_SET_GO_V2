@@ -302,7 +302,7 @@ class AuthService extends ChangeNotifier {
   /// Continue as Guest (local preview mode)
   Future<void> continueAsGuest() async {
     try {
-      final guestUid = 'guest_';
+      const guestUid = 'guest_';
       _currentUser = AuthUser(
         uid: guestUid,
         displayName: 'Guest Athlete',
