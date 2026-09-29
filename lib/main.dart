@@ -1,4 +1,6 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'firebase_options.dart';
 import 'package:flutter/material.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'notification_service.dart';
@@ -29,6 +31,13 @@ void main() async {
   try {
     tz.initializeTimeZones();
   } catch (_) {}
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    debugPrint('Firebase.initializeApp error: $e');
+  }
   try {
     await AuthService.instance.init();
   } catch (_) {}
@@ -498,7 +507,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           Row(
             children: [
               Text(
-                '$_timeGreeting, ${profile.userName} 👋',
+                '$_timeGreeting, ${profile.userName} ðŸ‘‹',
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
@@ -705,3 +714,4 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     );
   }
 }
+
