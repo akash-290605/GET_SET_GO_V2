@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import '../db_helper.dart';
-import '../models/food_models.dart';
-import '../models/workout_models.dart';
 import '../models/study_english_models.dart';
 import '../services/study_english_service.dart';
 import '../services/theme_service.dart';
@@ -19,7 +17,7 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
   final TextEditingController _searchCtrl = TextEditingController();
   String _query = '';
 
-  List<WorkoutDayPlan> _workouts = [];
+  List<Map<String, dynamic>> _goals = [];
   List<Map<String, dynamic>> _expenses = [];
   bool _isLoading = true;
 
@@ -37,11 +35,11 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
 
   Future<void> _loadData() async {
     try {
-      final w = await DBHelper.instance.getWorkoutPlans();
+      final g = await DBHelper.instance.getGoals();
       final e = await DBHelper.instance.getExpenses();
       if (mounted) {
         setState(() {
-          _workouts = w;
+          _goals = g;
           _expenses = e;
           _isLoading = false;
         });
@@ -56,28 +54,15 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
     final theme = Theme.of(context);
     final q = _query.toLowerCase().trim();
 
-    // 1. Workouts / Exercises matching
-    final matchingExercises = <Map<String, String>>[];
-    for (var w in _workouts) {
-      for (var ex in w.exercises) {
-        if (q.isNotEmpty && (ex.name.toLowerCase().contains(q) || ex.targetMuscle.toLowerCase().contains(q))) {
-          matchingExercises.add({
-            'name': ex.name,
-            'detail': '${w.dayName} • ${ex.targetMuscle} • ${ex.sets} sets × ${ex.reps}',
-          });
-        }
-      }
-    }
-
-    // 2. Food Catalogue matching
-    final matchingFoods = q.isEmpty
-        ? <StandardFoodEntry>[]
-        : StandardNutritionDatabase.allFoods
-            .where((f) => f.name.toLowerCase().contains(q) || f.category.toLowerCase().contains(q))
+    final matchingGoals = q.isEmpty
+        ? <Map<String, dynamic>>[]
+        : _goals
+            .where((g) =>
+                (g['title']?.toString().toLowerCase().contains(q) ?? false) ||
+                (g['category']?.toString().toLowerCase().contains(q) ?? false))
             .take(5)
             .toList();
 
-    // 3. Expenses matching
     final matchingExpenses = q.isEmpty
         ? <Map<String, dynamic>>[]
         : _expenses
@@ -87,14 +72,12 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
             .take(5)
             .toList();
 
-    // 4. Study Subjects matching
     final matchingSubjects = q.isEmpty
         ? <StudySubject>[]
         : StudyEnglishService.instance.subjects
             .where((s) => s.name.toLowerCase().contains(q) || s.topics.any((t) => t.title.toLowerCase().contains(q)))
             .toList();
 
-    // 5. English Words matching
     final matchingWords = q.isEmpty
         ? <EnglishVocabularyWord>[]
         : StudyEnglishService.instance.vocabularyList
@@ -102,8 +85,7 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
             .take(5)
             .toList();
 
-    final hasResults = matchingExercises.isNotEmpty ||
-        matchingFoods.isNotEmpty ||
+    final hasResults = matchingGoals.isNotEmpty ||
         matchingExpenses.isNotEmpty ||
         matchingSubjects.isNotEmpty ||
         matchingWords.isNotEmpty;
@@ -118,7 +100,6 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Search Input Header
             Row(
               children: [
                 const Icon(Icons.search_rounded, color: AppColors.primaryGlow),
@@ -128,7 +109,7 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
                     controller: _searchCtrl,
                     autofocus: true,
                     decoration: const InputDecoration(
-                      hintText: 'Search workouts, foods, expenses, study & English...',
+                      hintText: 'Search goals, expenses, study & English...',
                       border: InputBorder.none,
                     ),
                     onChanged: (v) => setState(() => _query = v),
@@ -151,7 +132,6 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
             const Divider(),
             const SizedBox(height: 8),
 
-            // Results List
             Flexible(
               child: SingleChildScrollView(
                 child: _isLoading
@@ -164,7 +144,7 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
                                 children: [
                                   Icon(Icons.travel_explore_rounded, size: 44, color: theme.hintColor),
                                   const SizedBox(height: 8),
-                                  Text('Type a keyword to instantly search across all modules.',
+                                  Text('Type a keyword to instantly search goals, finance, study & English.',
                                       style: TextStyle(fontSize: 13, color: theme.hintColor)),
                                 ],
                               ),
@@ -181,14 +161,13 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
                             : Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Exercises
-                                  if (matchingExercises.isNotEmpty) ...[
-                                    _buildCategoryHeader('💪 FITNESS & EXERCISES', AppColors.primaryGlow),
-                                    ...matchingExercises.map((e) => _buildResultTile(
-                                          title: e['name']!,
-                                          subtitle: e['detail']!,
-                                          icon: Icons.fitness_center_rounded,
-                                          color: AppColors.primary,
+                                  if (matchingGoals.isNotEmpty) ...[
+                                    _buildCategoryHeader('🎯 STRICT GOALS & HABITS', AppColors.accentRose),
+                                    ...matchingGoals.map((g) => _buildResultTile(
+                                          title: g['title']?.toString() ?? 'Goal',
+                                          subtitle: '${g['currentStreak'] ?? 0} day streak • Target: ${g['targetDays'] ?? 0} days',
+                                          icon: Icons.flag_rounded,
+                                          color: AppColors.accentRose,
                                           onTap: () {
                                             Navigator.pop(context);
                                             widget.onNavigateTab?.call(1);
@@ -197,14 +176,13 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
                                     const SizedBox(height: 12),
                                   ],
 
-                                  // Foods
-                                  if (matchingFoods.isNotEmpty) ...[
-                                    _buildCategoryHeader('🍎 NUTRITION & FOODS', AppColors.accentGreen),
-                                    ...matchingFoods.map((f) => _buildResultTile(
-                                          title: f.name,
-                                          subtitle: '${f.category} • ~${f.caloriesPerServing.toStringAsFixed(0)} kcal • ${f.proteinPerServing}g Protein',
-                                          icon: Icons.restaurant_rounded,
-                                          color: AppColors.accentGreen,
+                                  if (matchingExpenses.isNotEmpty) ...[
+                                    _buildCategoryHeader('💰 FINANCE & EXPENSES', AppColors.secondary),
+                                    ...matchingExpenses.map((exp) => _buildResultTile(
+                                          title: exp['item']?.toString() ?? 'Expense',
+                                          subtitle: '${exp['category']} • ₹${(exp['amount'] as num?)?.toStringAsFixed(0) ?? '0'}',
+                                          icon: Icons.account_balance_wallet_rounded,
+                                          color: AppColors.secondary,
                                           onTap: () {
                                             Navigator.pop(context);
                                             widget.onNavigateTab?.call(2);
@@ -213,23 +191,6 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
                                     const SizedBox(height: 12),
                                   ],
 
-                                  // Expenses
-                                  if (matchingExpenses.isNotEmpty) ...[
-                                    _buildCategoryHeader('💰 FINANCE & TRANSACTIONS', AppColors.secondary),
-                                    ...matchingExpenses.map((exp) => _buildResultTile(
-                                          title: exp['item']?.toString() ?? 'Expense',
-                                          subtitle: '${exp['category']} • ₹${(exp['amount'] as num?)?.toStringAsFixed(0) ?? '0'}',
-                                          icon: Icons.account_balance_wallet_rounded,
-                                          color: AppColors.secondary,
-                                          onTap: () {
-                                            Navigator.pop(context);
-                                            widget.onNavigateTab?.call(5);
-                                          },
-                                        )),
-                                    const SizedBox(height: 12),
-                                  ],
-
-                                  // Study
                                   if (matchingSubjects.isNotEmpty) ...[
                                     _buildCategoryHeader('📚 STUDY SUBJECTS', AppColors.accentAmber),
                                     ...matchingSubjects.map((sub) => _buildResultTile(
@@ -239,23 +200,22 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
                                           color: AppColors.accentAmber,
                                           onTap: () {
                                             Navigator.pop(context);
-                                            widget.onNavigateTab?.call(6);
+                                            widget.onNavigateTab?.call(3);
                                           },
                                         )),
                                     const SizedBox(height: 12),
                                   ],
 
-                                  // English Words
                                   if (matchingWords.isNotEmpty) ...[
-                                    _buildCategoryHeader('🇬🇧 ENGLISH VOCABULARY', AppColors.accentRose),
+                                    _buildCategoryHeader('🇬🇧 ENGLISH VOCABULARY', AppColors.primaryGlow),
                                     ...matchingWords.map((v) => _buildResultTile(
                                           title: v.word,
                                           subtitle: v.meaning,
                                           icon: Icons.menu_book_rounded,
-                                          color: AppColors.accentRose,
+                                          color: AppColors.primaryGlow,
                                           onTap: () {
                                             Navigator.pop(context);
-                                            widget.onNavigateTab?.call(7);
+                                            widget.onNavigateTab?.call(4);
                                           },
                                         )),
                                   ],

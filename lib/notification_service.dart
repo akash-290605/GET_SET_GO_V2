@@ -37,11 +37,34 @@ class NotificationService {
       hour: 21,
       minute: 30,
       title: '🌙 Nightly Mastery & Overall Targets Report',
-      body: 'Review your overall targets achieved today! Check your daily routine, workout, calories & study mastery.',
+      body: 'Review your overall targets achieved today! Check your strict goals, study sessions, English mastery & budget.',
       channelId: 'daily_entry_channel',
       channelName: 'Nightly Mastery & Target Reminders',
       channelDesc: 'Summary notifications of daily target completion and discipline greetings',
     );
+  }
+
+  Future<void> showInstantNotification({
+    required String title,
+    required String body,
+    int id = 999,
+  }) async {
+    try {
+      await _flutterLocalNotificationsPlugin.show(
+        id,
+        title,
+        body,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'instant_channel',
+            'Instant Notifications',
+            channelDescription: 'On-demand and check-in notifications',
+            importance: Importance.max,
+            priority: Priority.high,
+          ),
+        ),
+      );
+    } catch (_) {}
   }
 
   Future<void> scheduleGoalNotifications() async {

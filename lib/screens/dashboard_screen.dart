@@ -1,19 +1,15 @@
 import 'package:flutter/material.dart';
 import '../db_helper.dart';
-import '../models/food_models.dart';
-import '../models/workout_models.dart';
 import '../services/profile_service.dart';
 import '../services/study_english_service.dart';
 import '../services/theme_service.dart';
 import '../widgets/glass_card.dart';
-import 'food_tracking_screen.dart';
-import 'workout_screen.dart';
 import 'expense_screen.dart';
 import 'ai_coach_screen.dart';
 import 'study_screen.dart';
+import 'english_learning_screen.dart';
 import 'progress_screen.dart';
 import 'discipline_goals_screen.dart';
-import 'vitals_activity_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final Function(int)? onNavigateTab;
@@ -26,8 +22,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   bool _isLoading = true;
-  List<WorkoutDayPlan> _workouts = [];
-  List<MealRecord> _meals = [];
+  List<Map<String, dynamic>> _goals = [];
   List<Map<String, dynamic>> _expenses = [];
   List<Map<String, dynamic>> _studyLogs = [];
 
@@ -53,15 +48,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _loadDashboardData() async {
     setState(() => _isLoading = true);
     try {
-      final w = await DBHelper.instance.getWorkoutPlans();
-      final m = await DBHelper.instance.getMeals();
+      final g = await DBHelper.instance.getGoals();
       final e = await DBHelper.instance.getExpenses();
       final s = await DBHelper.instance.getStudyLogs();
 
       if (mounted) {
         setState(() {
-          _workouts = w;
-          _meals = m;
+          _goals = g;
           _expenses = e;
           _studyLogs = s;
           _isLoading = false;
@@ -83,33 +76,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     final weekday = DateTime.now().weekday - 1;
     return days[weekday.clamp(0, 6)];
-  }
-
-  WorkoutDayPlan? get _todayWorkout {
-    final day = _currentDayName;
-    try {
-      return _workouts.firstWhere((w) => w.dayName == day);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  double get _todayCalories {
-    final now = DateTime.now();
-    final todayMeals = _meals.where((m) =>
-        m.loggedAt.year == now.year &&
-        m.loggedAt.month == now.month &&
-        m.loggedAt.day == now.day);
-    return todayMeals.fold(0.0, (sum, m) => sum + m.totalCalories);
-  }
-
-  double get _todayProtein {
-    final now = DateTime.now();
-    final todayMeals = _meals.where((m) =>
-        m.loggedAt.year == now.year &&
-        m.loggedAt.month == now.month &&
-        m.loggedAt.day == now.day);
-    return todayMeals.fold(0.0, (sum, m) => sum + m.totalProtein);
   }
 
   Map<String, dynamic> get _monthlyFinanceStats {
@@ -179,30 +145,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
         totalMins += val;
       }
     }
-    return totalMins > 0 ? totalMins : 45; // Default active minutes
+    return totalMins > 0 ? totalMins : 45;
   }
 
   String get _smartAiInsight {
     final stats = _monthlyFinanceStats;
     final budgetCap = ProfileService.instance.monthlyBudgetCap;
     final exp = stats['expenses'] as double;
-    final todayCal = _todayCalories;
-    final targetCal = ProfileService.instance.nutritionTarget.calorieTarget;
-    final todayProt = _todayProtein;
-    final targetProt = ProfileService.instance.nutritionTarget.proteinTargetGrams;
+    final studyMins = _todayStudyMinutes;
 
     if (exp > budgetCap * 0.8) {
-      return "⚠️ You have utilized ${(exp / budgetCap * 100).toStringAsFixed(0)}% of your monthly budget (₹${exp.toStringAsFixed(0)} / ₹${budgetCap.toStringAsFixed(0)}). Consider reviewing recurring subscriptions.";
-    } else if (todayCal > targetCal && targetCal > 0) {
-      return "⚠️ Today's caloric intake is ~${(todayCal - targetCal).toStringAsFixed(0)} kcal above your target. A 20-min active walk will help balance your energy expenditure.";
-    } else if (todayProt < targetProt * 0.5 && DateTime.now().hour > 16) {
-      return "🥩 Protein intake is currently ~${todayProt.toStringAsFixed(0)}g (Target: ~${targetProt.toStringAsFixed(0)}g). A protein-dense meal like paneer, eggs, or chicken is recommended for dinner.";
-    } else if (_todayWorkout?.status == WorkoutStatus.completed) {
-      return "🔥 Exceptional discipline! Today's ${_todayWorkout?.workoutName} was marked completed. Hydrate properly to support muscular recovery.";
+      return "⚠️ You have utilized ${(exp / budgetCap * 100).toStringAsFixed(0)}% of your monthly budget (₹${exp.toStringAsFixed(0)} / ₹${budgetCap.toStringAsFixed(0)}). Consider reviewing non-essential discretionary expenses.";
+    } else if (studyMins < 60 && DateTime.now().hour > 17) {
+      return "📚 You've completed $studyMins minutes of focused study today. Dedicate a 30-minute deep focus session this evening to hit your daily mastery goals.";
+    } else if (_goals.isNotEmpty && (_goals.first['currentStreak'] as int? ?? 0) >= 7) {
+      return "🔥 Outstanding momentum! You're on a ${_goals.first['currentStreak']}-day streak on your primary goal. Keep your discipline unbreakable today.";
     } else if (stats['topCategory'] != 'None') {
-      return "💡 Your largest expense category this month is ${stats['topCategory']} (₹${(stats['topCategoryAmount'] as double).toStringAsFixed(0)}). AI Coach can suggest optimizations.";
+      return "💡 Your largest expense category this month is ${stats['topCategory']} (₹${(stats['topCategoryAmount'] as double).toStringAsFixed(0)}). AI Coach can suggest smart allocation tactics.";
     }
-    return "⚡ You're on track across fitness, study, and financial targets. Maintain consistency and finish today strong!";
+    return "⚡ You are on track across Strict Discipline Goals, Study Milestones, and Financial Budgets. Maintain focused execution and finish today strong!";
+  }
+
+  void _navigateToTab(int index, Widget fallbackScreen) {
+    if (widget.onNavigateTab != null) {
+      widget.onNavigateTab!(index);
+    } else {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => fallbackScreen));
+    }
   }
 
   @override
@@ -210,10 +179,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final isDark = ThemeService.instance.isDarkMode(context);
     final profile = ProfileService.instance;
     final curSym = profile.currencySymbol;
-    final todayWk = _todayWorkout;
     final finStats = _monthlyFinanceStats;
-    final completedWorkouts = _workouts.where((w) => w.status == WorkoutStatus.completed).length;
-    final totalPlannedWorkouts = _workouts.where((w) => w.status != WorkoutStatus.restDay).length;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -227,41 +193,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 1. HERO SECTION
                     _buildHeroSection(context, profile, isDark),
                     const SizedBox(height: 16),
 
-                    // 2. COMPACT AI INSIGHT CARD
                     _buildAiInsightCard(context, isDark),
                     const SizedBox(height: 16),
 
-                    // 3. DASHBOARD QUICK ACTIONS
                     _buildQuickActionsRow(context, isDark),
                     const SizedBox(height: 18),
 
-                    // 4. CENTRAL DAILY PROGRESS VISUALIZATION
                     _buildDailyProgressOverview(context, profile, finStats, isDark),
                     const SizedBox(height: 16),
 
-                    // 5. 7-DAY WEEKLY MATRIX
                     _buildWeeklyMatrixCard(context, isDark),
                     const SizedBox(height: 16),
 
-                    // 6. STRICT GOAL PROTOCOL & DAILY TELEMETRY
                     _buildStrictGoalCard(isDark),
                     const SizedBox(height: 16),
 
-                    // 7. FOUR MAJOR OVERVIEW CARDS: FITNESS, NUTRITION, FINANCE, STUDY
-                    _buildFitnessCard(todayWk, completedWorkouts, totalPlannedWorkouts, isDark),
-                    const SizedBox(height: 14),
-
-                    _buildNutritionCard(isDark),
+                    _buildStrictGoalsOverviewCard(isDark),
                     const SizedBox(height: 14),
 
                     _buildFinanceCard(finStats, curSym, isDark),
                     const SizedBox(height: 14),
 
                     _buildStudyCard(isDark),
+                    const SizedBox(height: 14),
+
+                    _buildEnglishCard(isDark),
                     const SizedBox(height: 40),
                   ],
                 ),
@@ -270,8 +229,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ================= 1. HERO SECTION =================
   Widget _buildHeroSection(BuildContext context, ProfileService profile, bool isDark) {
+    final maxStreak = _goals.fold<int>(0, (prev, g) {
+      final s = (g['currentStreak'] as num?)?.toInt() ?? 0;
+      return s > prev ? s : prev;
+    });
+    final displayStreak = maxStreak > 0 ? maxStreak : 5;
+
     return GlassCard(
       borderRadius: 20,
       gradient: LinearGradient(
@@ -310,7 +274,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      'Let\'s make today productive and disciplined.',
+                      'Strict discipline, relentless learning, and financial freedom.',
                       style: TextStyle(fontSize: 13, color: AppColors.textSecondary(isDark)),
                     ),
                   ],
@@ -324,14 +288,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppColors.accentAmber.withValues(alpha: 0.35)),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.local_fire_department_rounded, color: AppColors.accentAmber, size: 18),
-                    SizedBox(width: 4),
+                    const Icon(Icons.local_fire_department_rounded, color: AppColors.accentAmber, size: 18),
+                    const SizedBox(width: 4),
                     Text(
-                      '5 Day Streak',
-                      style: TextStyle(
+                      '$displayStreak Day Streak',
+                      style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
                         color: AppColors.accentAmber,
@@ -346,29 +310,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Divider(height: 1, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
           const SizedBox(height: 14),
 
-          // 4 Mini Live Status Chips
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
                 _buildHeroMiniChip(
-                  '💪 Workout',
-                  _todayWorkout != null ? _todayWorkout!.workoutName : 'Rest Day',
-                  AppColors.primary,
+                  '🎯 Goals',
+                  '${_goals.length} Active Protocol',
+                  AppColors.accentRose,
                   isDark,
-                  onTap: () => widget.onNavigateTab != null
-                      ? widget.onNavigateTab!(1)
-                      : Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkoutScreen())),
-                ),
-                const SizedBox(width: 8),
-                _buildHeroMiniChip(
-                  '🍎 Calories',
-                  '~${_todayCalories.toStringAsFixed(0)} / ${profile.nutritionTarget.calorieTarget.toStringAsFixed(0)}',
-                  AppColors.accentGreen,
-                  isDark,
-                  onTap: () => widget.onNavigateTab != null
-                      ? widget.onNavigateTab!(2)
-                      : Navigator.push(context, MaterialPageRoute(builder: (_) => const FoodTrackingScreen())),
+                  onTap: () => _navigateToTab(1, const DisciplineGoalsScreen()),
                 ),
                 const SizedBox(width: 8),
                 _buildHeroMiniChip(
@@ -376,9 +327,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   '₹${(profile.monthlyBudgetCap - (_monthlyFinanceStats['expenses'] as double)).toStringAsFixed(0)}',
                   AppColors.secondary,
                   isDark,
-                  onTap: () => widget.onNavigateTab != null
-                      ? widget.onNavigateTab!(5)
-                      : Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseScreen())),
+                  onTap: () => _navigateToTab(2, const ExpenseScreen()),
                 ),
                 const SizedBox(width: 8),
                 _buildHeroMiniChip(
@@ -386,9 +335,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   '$_todayStudyMinutes / 120m',
                   AppColors.purple,
                   isDark,
-                  onTap: () => widget.onNavigateTab != null
-                      ? widget.onNavigateTab!(6)
-                      : Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyAndEnglishScreen())),
+                  onTap: () => _navigateToTab(3, const StudyAndEnglishScreen()),
+                ),
+                const SizedBox(width: 8),
+                _buildHeroMiniChip(
+                  '🇬🇧 English',
+                  '${StudyEnglishService.instance.vocabularyList.length} Words',
+                  AppColors.primaryGlow,
+                  isDark,
+                  onTap: () => _navigateToTab(4, const EnglishLearningScreen()),
                 ),
               ],
             ),
@@ -427,7 +382,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ================= 2. COMPACT AI INSIGHT CARD =================
   Widget _buildAiInsightCard(BuildContext context, bool isDark) {
     return GlassCard(
       borderRadius: 18,
@@ -452,7 +406,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     const Text('GET SET GO AI INSIGHT', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.accentAmber, letterSpacing: 1.1)),
                     Text(
-                      'Real-time Life & Performance Analytics',
+                      'Real-time Discipline, Study & Finance Synergy',
                       style: TextStyle(fontSize: 11, color: AppColors.textSecondary(isDark)),
                     ),
                   ],
@@ -481,15 +435,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                onPressed: () {
-                  if (widget.onNavigateTab != null) {
-                    widget.onNavigateTab!(9);
-                  } else {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ProgressScreen()));
-                  }
-                },
+                onPressed: () => _navigateToTab(6, const ProgressScreen()),
                 icon: const Icon(Icons.insights_rounded, size: 16),
-                label: const Text('View Details', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                label: const Text('View Analytics', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
               ),
               const SizedBox(width: 8),
               ElevatedButton.icon(
@@ -500,13 +448,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   elevation: 0,
                 ),
-                onPressed: () {
-                  if (widget.onNavigateTab != null) {
-                    widget.onNavigateTab!(8);
-                  } else {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const AiCoachScreen()));
-                  }
-                },
+                onPressed: () => _navigateToTab(5, const AiCoachScreen()),
                 icon: const Icon(Icons.psychology_rounded, size: 16),
                 label: const Text('Ask AI Coach', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
               ),
@@ -517,7 +459,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ================= 3. QUICK ACTIONS ROW =================
   Widget _buildQuickActionsRow(BuildContext context, bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -532,43 +473,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Row(
             children: [
               _buildQuickActionButton(
-                icon: Icons.camera_alt_rounded,
-                label: 'Scan Food AI',
-                color: AppColors.accentGreen,
-                isDark: isDark,
-                onTap: () => widget.onNavigateTab != null
-                    ? widget.onNavigateTab!(2)
-                    : Navigator.push(context, MaterialPageRoute(builder: (_) => const FoodTrackingScreen())),
-              ),
-              const SizedBox(width: 8),
-              _buildQuickActionButton(
-                icon: Icons.directions_walk_rounded,
-                label: 'Vitals & Water',
-                color: AppColors.accentBlue,
-                isDark: isDark,
-                onTap: () => widget.onNavigateTab != null
-                    ? widget.onNavigateTab!(3)
-                    : Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyActivityAndVitalsScreen())),
-              ),
-              const SizedBox(width: 8),
-              _buildQuickActionButton(
                 icon: Icons.track_changes_rounded,
                 label: 'Strict Goals',
                 color: AppColors.accentRose,
                 isDark: isDark,
-                onTap: () => widget.onNavigateTab != null
-                    ? widget.onNavigateTab!(4)
-                    : Navigator.push(context, MaterialPageRoute(builder: (_) => const DisciplineGoalsScreen())),
-              ),
-              const SizedBox(width: 8),
-              _buildQuickActionButton(
-                icon: Icons.fitness_center_rounded,
-                label: 'Start Workout',
-                color: AppColors.primary,
-                isDark: isDark,
-                onTap: () => widget.onNavigateTab != null
-                    ? widget.onNavigateTab!(1)
-                    : Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkoutScreen())),
+                onTap: () => _navigateToTab(1, const DisciplineGoalsScreen()),
               ),
               const SizedBox(width: 8),
               _buildQuickActionButton(
@@ -576,9 +485,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 label: 'Add Expense',
                 color: AppColors.secondary,
                 isDark: isDark,
-                onTap: () => widget.onNavigateTab != null
-                    ? widget.onNavigateTab!(5)
-                    : Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseScreen())),
+                onTap: () => _navigateToTab(2, const ExpenseScreen()),
               ),
               const SizedBox(width: 8),
               _buildQuickActionButton(
@@ -586,19 +493,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 label: 'Start Study',
                 color: AppColors.purple,
                 isDark: isDark,
-                onTap: () => widget.onNavigateTab != null
-                    ? widget.onNavigateTab!(6)
-                    : Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyAndEnglishScreen())),
+                onTap: () => _navigateToTab(3, const StudyAndEnglishScreen()),
+              ),
+              const SizedBox(width: 8),
+              _buildQuickActionButton(
+                icon: Icons.record_voice_over_rounded,
+                label: 'English Speaking',
+                color: AppColors.primaryGlow,
+                isDark: isDark,
+                onTap: () => _navigateToTab(4, const EnglishLearningScreen()),
               ),
               const SizedBox(width: 8),
               _buildQuickActionButton(
                 icon: Icons.psychology_rounded,
                 label: 'Ask AI Coach',
-                color: AppColors.primaryGlow,
+                color: AppColors.accentAmber,
                 isDark: isDark,
-                onTap: () => widget.onNavigateTab != null
-                    ? widget.onNavigateTab!(8)
-                    : Navigator.push(context, MaterialPageRoute(builder: (_) => const AiCoachScreen())),
+                onTap: () => _navigateToTab(5, const AiCoachScreen()),
+              ),
+              const SizedBox(width: 8),
+              _buildQuickActionButton(
+                icon: Icons.analytics_rounded,
+                label: 'Full Analytics',
+                color: AppColors.primary,
+                isDark: isDark,
+                onTap: () => _navigateToTab(6, const ProgressScreen()),
               ),
             ],
           ),
@@ -637,14 +556,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ================= 4. DAILY PROGRESS VISUALIZATION =================
   Widget _buildDailyProgressOverview(BuildContext context, ProfileService profile, Map<String, dynamic> finStats, bool isDark) {
-    // Fitness Progress: 1.0 if completed, 0.5 if in progress, else 0
-    final fitnessPct = _todayWorkout?.status == WorkoutStatus.completed ? 1.0 : (_todayWorkout?.status == WorkoutStatus.inProgress ? 0.5 : 0.7);
-    final nutritionPct = (profile.nutritionTarget.calorieTarget > 0 ? _todayCalories / profile.nutritionTarget.calorieTarget : 0.0).clamp(0.0, 1.0);
     final studyPct = (_todayStudyMinutes / 120.0).clamp(0.0, 1.0);
     final budgetSpent = finStats['expenses'] as double;
     final budgetPct = (1.0 - (budgetSpent / profile.monthlyBudgetCap)).clamp(0.0, 1.0);
+    final goalsPct = _goals.isNotEmpty
+        ? (_goals.where((g) => g['lastCompletedDate'] == DateTime.now().toIso8601String().substring(0, 10)).length / _goals.length).clamp(0.0, 1.0)
+        : 0.8;
+    final englishWordsCount = StudyEnglishService.instance.vocabularyList.length;
+    final englishPct = (englishWordsCount / 30.0).clamp(0.0, 1.0);
 
     return GlassCard(
       borderRadius: 18,
@@ -655,7 +575,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Today\'s Life Balance Progress',
+                'Today\'s Core Protocol Progress',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
               ),
               Text(
@@ -666,13 +586,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 14),
 
-          _buildProgressRow('💪 Fitness', fitnessPct, '${(fitnessPct * 100).toStringAsFixed(0)}%', AppColors.primary, isDark),
-          const SizedBox(height: 10),
-          _buildProgressRow('🍎 Nutrition', nutritionPct, '${(nutritionPct * 100).toStringAsFixed(0)}%', AppColors.accentGreen, isDark),
-          const SizedBox(height: 10),
-          _buildProgressRow('📚 Study & Focus', studyPct, '${(studyPct * 100).toStringAsFixed(0)}%', AppColors.purple, isDark),
+          _buildProgressRow('🎯 Strict Goals & Discipline', goalsPct, '${(goalsPct * 100).toStringAsFixed(0)}%', AppColors.accentRose, isDark),
           const SizedBox(height: 10),
           _buildProgressRow('💰 Budget Adherence', budgetPct, '${(budgetPct * 100).toStringAsFixed(0)}%', AppColors.secondary, isDark),
+          const SizedBox(height: 10),
+          _buildProgressRow('📚 Study & Academics', studyPct, '${(studyPct * 100).toStringAsFixed(0)}%', AppColors.purple, isDark),
+          const SizedBox(height: 10),
+          _buildProgressRow('🇬🇧 English Mastery', englishPct, '${(englishPct * 100).toStringAsFixed(0)}%', AppColors.primaryGlow, isDark),
         ],
       ),
     );
@@ -703,7 +623,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ================= 5. 7-DAY WEEKLY MATRIX =================
   Widget _buildWeeklyMatrixCard(BuildContext context, bool isDark) {
     final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     final currentIdx = (DateTime.now().weekday - 1).clamp(0, 6);
@@ -767,7 +686,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ================= 6. STRICT GOAL CARD =================
   Widget _buildStrictGoalCard(bool isDark) {
     final profile = ProfileService.instance;
     final stepProgress = (profile.dailyStepTarget > 0 ? profile.todaySteps / profile.dailyStepTarget : 0.0).clamp(0.0, 1.0);
@@ -794,13 +712,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
               InkWell(
-                onTap: () {
-                  if (widget.onNavigateTab != null) {
-                    widget.onNavigateTab!(4);
-                  } else {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const DisciplineGoalsScreen()));
-                  }
-                },
+                onTap: () => _navigateToTab(1, const DisciplineGoalsScreen()),
                 child: const Text('Strict Goals Hub →', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppColors.primary)),
               ),
             ],
@@ -814,53 +726,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Divider(height: 1, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
           const SizedBox(height: 12),
 
-          // Steps
-          InkWell(
-            onTap: () {
-              if (widget.onNavigateTab != null) {
-                widget.onNavigateTab!(3);
-              } else {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyActivityAndVitalsScreen(initialTabIndex: 0)));
-              }
-            },
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.directions_walk_rounded, color: AppColors.accentBlue, size: 16),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${profile.todaySteps} / ${profile.dailyStepTarget} Steps',
-                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.directions_walk_rounded, color: AppColors.accentBlue, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${profile.todaySteps} / ${profile.dailyStepTarget} Steps',
+                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  InkWell(
+                    onTap: () => profile.logSteps(500),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(color: AppColors.accentBlue.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                      child: const Text('+500', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.accentBlue)),
                     ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    InkWell(
-                      onTap: () => profile.logSteps(500),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: AppColors.accentBlue.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
-                        child: const Text('+500', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.accentBlue)),
-                      ),
+                  ),
+                  const SizedBox(width: 4),
+                  InkWell(
+                    onTap: () => profile.logSteps(1000),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(color: AppColors.accentBlue.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                      child: const Text('+1k', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.accentBlue)),
                     ),
-                    const SizedBox(width: 4),
-                    InkWell(
-                      onTap: () => profile.logSteps(1000),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: AppColors.accentBlue.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
-                        child: const Text('+1k', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.accentBlue)),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textSecondary(isDark)),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
           const SizedBox(height: 4),
           ClipRRect(
@@ -874,44 +774,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 12),
 
-          // Active Mins
-          InkWell(
-            onTap: () {
-              if (widget.onNavigateTab != null) {
-                widget.onNavigateTab!(3);
-              } else {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyActivityAndVitalsScreen(initialTabIndex: 1)));
-              }
-            },
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.timer_outlined, color: AppColors.purple, size: 16),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${profile.todayActiveTimeMinutes} / ${profile.dailyActiveTimeMinutesTarget} Active Mins',
-                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.timer_outlined, color: AppColors.purple, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${profile.todayActiveTimeMinutes} / ${profile.dailyActiveTimeMinutesTarget} Active Mins',
+                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  InkWell(
+                    onTap: () => profile.logActiveMinutes(15),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(color: AppColors.purple.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                      child: const Text('+15m', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.purple)),
                     ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    InkWell(
-                      onTap: () => profile.logActiveMinutes(15),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: AppColors.purple.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
-                        child: const Text('+15m', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.purple)),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textSecondary(isDark)),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
           const SizedBox(height: 4),
           ClipRRect(
@@ -925,44 +813,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 12),
 
-          // Water
-          InkWell(
-            onTap: () {
-              if (widget.onNavigateTab != null) {
-                widget.onNavigateTab!(3);
-              } else {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyActivityAndVitalsScreen(initialTabIndex: 2)));
-              }
-            },
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.water_drop_outlined, color: AppColors.secondary, size: 16),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${(profile.todayWaterIntakeMl / 1000).toStringAsFixed(2)} / ${(profile.dailyWaterIntakeMlTarget / 1000).toStringAsFixed(1)} L Water',
-                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.water_drop_outlined, color: AppColors.secondary, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${(profile.todayWaterIntakeMl / 1000).toStringAsFixed(2)} / ${(profile.dailyWaterIntakeMlTarget / 1000).toStringAsFixed(1)} L Water',
+                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  InkWell(
+                    onTap: () => profile.logWater(250),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(color: AppColors.secondary.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                      child: const Text('+250ml', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.secondary)),
                     ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    InkWell(
-                      onTap: () => profile.logWater(250),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: AppColors.secondary.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
-                        child: const Text('+250ml', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.secondary)),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textSecondary(isDark)),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
           const SizedBox(height: 4),
           ClipRRect(
@@ -979,13 +855,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ================= 7. MAJOR CARDS: FITNESS, NUTRITION, FINANCE, STUDY =================
-  Widget _buildFitnessCard(WorkoutDayPlan? todayWk, int completed, int totalPlanned, bool isDark) {
-    final profile = ProfileService.instance;
-
+  Widget _buildStrictGoalsOverviewCard(bool isDark) {
     return GlassCard(
       borderRadius: 18,
-      border: Border.all(color: AppColors.primary.withValues(alpha: isDark ? 0.3 : 0.2)),
+      border: Border.all(color: AppColors.accentRose.withValues(alpha: isDark ? 0.3 : 0.2)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -994,38 +867,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               const Row(
                 children: [
-                  Icon(Icons.fitness_center_rounded, color: AppColors.primary, size: 18),
+                  Icon(Icons.flag_rounded, color: AppColors.accentRose, size: 18),
                   SizedBox(width: 8),
-                  Text('FITNESS & WORKOUT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary, letterSpacing: 1.1)),
+                  Text('STRICT GOALS & HABITS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.accentRose, letterSpacing: 1.1)),
                 ],
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
+                  backgroundColor: AppColors.accentRose,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   elevation: 0,
                 ),
-                onPressed: () {
-                  if (widget.onNavigateTab != null) {
-                    widget.onNavigateTab!(1);
-                  } else {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkoutScreen()));
-                  }
-                },
-                child: const Text('START WORKOUT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                onPressed: () => _navigateToTab(1, const DisciplineGoalsScreen()),
+                child: const Text('OPEN GOALS HUB', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
-            todayWk != null ? todayWk.workoutName : 'Active Rest Day',
+            '${_goals.length} Active Strict Commitments',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
           ),
           const SizedBox(height: 2),
           Text(
-            todayWk != null ? '${todayWk.muscleGroup} • ${todayWk.exercises.length} exercises • ~${todayWk.estimatedDurationMinutes} mins' : 'Rest and recover for next session',
+            'Zero excuse rule: Deletion demands a formal 50-word handwritten apology',
             style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark)),
           ),
           const SizedBox(height: 12),
@@ -1034,75 +901,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildMiniMetric('Weight', '${profile.weightKg} kg', 'Target: ${profile.targetWeightKg} kg', isDark),
-              _buildMiniMetric('Weekly Split', '$completed / $totalPlanned Done', '${((totalPlanned > 0 ? completed / totalPlanned : 0) * 100).toStringAsFixed(0)}% complete', isDark),
+              _buildMiniMetric('Active Goals', '${_goals.length}', 'Tracked daily', isDark),
+              _buildMiniMetric('Discipline Mode', 'STRICT', 'Uncompromising', isDark),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNutritionCard(bool isDark) {
-    final target = ProfileService.instance.nutritionTarget;
-    final todayCal = _todayCalories;
-    final todayProt = _todayProtein;
-    final calPct = (target.calorieTarget > 0 ? todayCal / target.calorieTarget : 0.0).clamp(0.0, 1.0);
-
-    return GlassCard(
-      borderRadius: 18,
-      border: Border.all(color: AppColors.accentGreen.withValues(alpha: isDark ? 0.3 : 0.2)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.restaurant_rounded, color: AppColors.accentGreen, size: 18),
-                  SizedBox(width: 8),
-                  Text('DAILY NUTRITION', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.accentGreen, letterSpacing: 1.1)),
-                ],
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.accentGreen,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  elevation: 0,
-                ),
-                onPressed: () {
-                  if (widget.onNavigateTab != null) {
-                    widget.onNavigateTab!(2);
-                  } else {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const FoodTrackingScreen()));
-                  }
-                },
-                child: const Text('TRACK FOOD', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            '~${todayCal.toStringAsFixed(0)} / ${target.calorieTarget.toStringAsFixed(0)} kcal',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            '~${todayProt.toStringAsFixed(0)}g / ${target.proteinTargetGrams.toStringAsFixed(0)}g Protein • ${(calPct * 100).toStringAsFixed(0)}% Target Achieved',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark)),
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: calPct,
-              minHeight: 6,
-              backgroundColor: isDark ? const Color(0x1FFFFFFF) : const Color(0x1F0F172A),
-              valueColor: const AlwaysStoppedAnimation(AppColors.accentGreen),
-            ),
           ),
         ],
       ),
@@ -1138,13 +939,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   elevation: 0,
                 ),
-                onPressed: () {
-                  if (widget.onNavigateTab != null) {
-                    widget.onNavigateTab!(5);
-                  } else {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseScreen()));
-                  }
-                },
+                onPressed: () => _navigateToTab(2, const ExpenseScreen()),
                 child: const Text('VIEW FINANCE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
               ),
             ],
@@ -1214,13 +1009,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   elevation: 0,
                 ),
-                onPressed: () {
-                  if (widget.onNavigateTab != null) {
-                    widget.onNavigateTab!(6);
-                  } else {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyAndEnglishScreen()));
-                  }
-                },
+                onPressed: () => _navigateToTab(3, const StudyAndEnglishScreen()),
                 child: const Text('START STUDY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
               ),
             ],
@@ -1233,6 +1022,53 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 2),
           Text(
             '${studyService.studyStreakDays} Day Study Streak • ${studyService.totalCompletedTopics} Topics Mastered',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEnglishCard(bool isDark) {
+    final studyService = StudyEnglishService.instance;
+
+    return GlassCard(
+      borderRadius: 18,
+      border: Border.all(color: AppColors.primaryGlow.withValues(alpha: isDark ? 0.3 : 0.2)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.record_voice_over_rounded, color: AppColors.primaryGlow, size: 18),
+                  SizedBox(width: 8),
+                  Text('ENGLISH MASTERY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryGlow, letterSpacing: 1.1)),
+                ],
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryGlow,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
+                ),
+                onPressed: () => _navigateToTab(4, const EnglishLearningScreen()),
+                child: const Text('PRACTICE NOW', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '${studyService.vocabularyList.length} Active Vocabulary Words',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark)),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'AI Speaking Practice, Live Conversations & Vocabulary Builder',
             style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark)),
           ),
         ],

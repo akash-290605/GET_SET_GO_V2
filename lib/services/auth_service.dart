@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -48,7 +48,13 @@ class AuthService extends ChangeNotifier {
   static const String _userKey = 'gsg_auth_user_v5';
   static const String _webClientId = '159071674059-89c7hpmmarq633tr542splk3ijhmu5s7.apps.googleusercontent.com';
 
-  final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
+  FirebaseAuth? get _firebaseAuth {
+    try {
+      return FirebaseAuth.instance;
+    } catch (_) {
+      return null;
+    }
+  }
 
   AuthUser? _currentUser;
   bool _isGuest = false;
@@ -62,7 +68,7 @@ class AuthService extends ChangeNotifier {
   Future<void> init() async {
     try {
       // 1. Check if Firebase already has an active, authenticated user session
-      final fbUser = _firebaseAuth.currentUser;
+      final fbUser = _firebaseAuth?.currentUser;
       if (fbUser != null) {
         _syncFromFirebaseUser(fbUser);
         if (_currentUser?.displayName.isNotEmpty ?? false) {
@@ -138,7 +144,9 @@ class AuthService extends ChangeNotifier {
         googleProvider.addScope('profile');
         googleProvider.setCustomParameters({'prompt': 'select_account'});
 
-        final UserCredential userCredential = await _firebaseAuth.signInWithPopup(googleProvider);
+        final fb = _firebaseAuth;
+        if (fb == null) throw Exception('Firebase is not initialized.');
+        final UserCredential userCredential = await fb.signInWithPopup(googleProvider);
         user = userCredential.user;
       } else {
         // Android / iOS / Desktop: Use GoogleSignIn 7.x and exchange credentials with Firebase Auth
@@ -151,7 +159,9 @@ class AuthService extends ChangeNotifier {
           idToken: googleAuth.idToken,
         );
 
-        final UserCredential userCredential = await _firebaseAuth.signInWithCredential(credential);
+        final fb = _firebaseAuth;
+        if (fb == null) throw Exception('Firebase is not initialized.');
+        final UserCredential userCredential = await fb.signInWithCredential(credential);
         user = userCredential.user;
       }
 
@@ -202,7 +212,9 @@ class AuthService extends ChangeNotifier {
     }
 
     try {
-      final UserCredential credential = await _firebaseAuth.createUserWithEmailAndPassword(
+      final fb = _firebaseAuth;
+      if (fb == null) throw Exception('Firebase is not initialized.');
+      final UserCredential credential = await fb.createUserWithEmailAndPassword(
         email: cleanEmail,
         password: password,
       );
@@ -211,7 +223,7 @@ class AuthService extends ChangeNotifier {
       if (user != null) {
         await user.updateDisplayName(cleanName);
         await user.reload();
-        final refreshedUser = _firebaseAuth.currentUser ?? user;
+        final refreshedUser = _firebaseAuth?.currentUser ?? user;
         _syncFromFirebaseUser(refreshedUser);
       } else {
         _currentUser = AuthUser(
@@ -255,7 +267,9 @@ class AuthService extends ChangeNotifier {
     }
 
     try {
-      final UserCredential credential = await _firebaseAuth.signInWithEmailAndPassword(
+      final fb = _firebaseAuth;
+      if (fb == null) throw Exception('Firebase is not initialized.');
+      final UserCredential credential = await fb.signInWithEmailAndPassword(
         email: cleanEmail,
         password: password,
       );
@@ -291,7 +305,9 @@ class AuthService extends ChangeNotifier {
       throw Exception('Please enter a valid email address.');
     }
     try {
-      await _firebaseAuth.sendPasswordResetEmail(email: cleanEmail);
+      final fb = _firebaseAuth;
+      if (fb == null) throw Exception('Firebase is not initialized.');
+      await fb.sendPasswordResetEmail(email: cleanEmail);
     } on FirebaseAuthException catch (e) {
       throw Exception(_mapFirebaseError(e));
     } catch (e) {
@@ -324,7 +340,7 @@ class AuthService extends ChangeNotifier {
   Future<void> updateProfile({required String displayName, required String email, String? photoURL}) async {
     if (_currentUser == null) return;
     try {
-      final fbUser = _firebaseAuth.currentUser;
+      final fbUser = _firebaseAuth?.currentUser;
       if (fbUser != null) {
         await fbUser.updateDisplayName(displayName);
         if (photoURL != null && photoURL.isNotEmpty) {
@@ -352,7 +368,7 @@ class AuthService extends ChangeNotifier {
   /// Sign Out: Completely clear session and sign out of Firebase & Google
   Future<void> signOut() async {
     try {
-      await _firebaseAuth.signOut();
+      await _firebaseAuth?.signOut();
     } catch (e) {
       debugPrint('Firebase signOut error: ');
     }

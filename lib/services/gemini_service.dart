@@ -3,8 +3,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/food_models.dart';
-import '../models/workout_models.dart';
 import '../models/study_english_models.dart';
 import 'auth_service.dart';
 
@@ -81,152 +79,6 @@ class GeminiService {
   }
 
   bool get hasApiKey => _customApiKey != null && _customApiKey!.isNotEmpty;
-
-  // ---------------- MULTIMODAL PHOTO FOOD RECOGNITION ----------------
-  Future<Map<String, dynamic>> analyzeFoodPhoto({
-    Uint8List? imageBytes,
-    String? mimeType = 'image/jpeg',
-  }) async {
-    if (!_initialized) await init();
-
-    if (imageBytes != null && _customApiKey != null && _customApiKey!.isNotEmpty) {
-      try {
-        final onlineResult = await _callGeminiVisionFoodApi(imageBytes, mimeType ?? 'image/jpeg');
-        if (onlineResult['items'] != null && (onlineResult['items'] as List).isNotEmpty) {
-          return onlineResult;
-        }
-      } catch (e) {
-        debugPrint('Gemini Vision online food error: $e. Falling back to Neural Vision Engine.');
-      }
-    }
-
-    // Offline Neural Vision / Smart Recognition Fallback
-    return _generateOfflineFoodAnalysis();
-  }
-
-  Future<Map<String, dynamic>> _callGeminiVisionFoodApi(Uint8List bytes, String mimeType) async {
-    final base64Image = base64Encode(bytes);
-    final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/$_defaultModel:generateContent?key=$_customApiKey');
-
-    const prompt = '''
-You are the Titan Food & Nutrition AI. Analyze this food image.
-Identify all distinct visible food items with estimated portions in grams.
-IMPORTANT: Return STRICTLY JSON format with this exact schema:
-{
-  "foods": [
-    {
-      "name": "Food item name",
-      "portionGrams": 150,
-      "calories": 220,
-      "protein": 18.5,
-      "carbohydrates": 25.0,
-      "fat": 6.0,
-      "fiber": 3.0,
-      "sugar": 1.5,
-      "sodiumMg": 120,
-      "confidence": "High Confidence"
-    }
-  ],
-  "notes": "Brief 1-sentence summary of estimated nutrition. Always remember that portion sizes from photos are approximations."
-}
-''';
-
-    final body = {
-      'contents': [
-        {
-          'parts': [
-            {'text': prompt},
-            {
-              'inlineData': {
-                'mimeType': mimeType,
-                'data': base64Image,
-              }
-            }
-          ]
-        }
-      ],
-      'generationConfig': {
-        'temperature': 0.2,
-        'responseMimeType': 'application/json',
-      }
-    };
-
-    final res = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode(body),
-    ).timeout(const Duration(seconds: 18));
-
-    if (res.statusCode == 200) {
-      final data = json.decode(res.body);
-      final rawText = data['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?;
-      if (rawText != null) {
-        final parsed = json.decode(rawText);
-        final rawFoods = parsed['foods'] as List<dynamic>? ?? [];
-        final items = rawFoods.map((f) => FoodItemDetected.fromMap(f as Map<String, dynamic>)).toList();
-        return {
-          'items': items,
-          'notes': parsed['notes'] ?? 'Estimated nutrition based on visible food items.',
-        };
-      }
-    }
-    throw Exception('Failed to parse Gemini Vision response (HTTP ${res.statusCode})');
-  }
-
-  Map<String, dynamic> _generateOfflineFoodAnalysis() {
-    final defaultFoods = [
-      FoodItemDetected(
-        id: 'off_1',
-        name: 'Steamed Rice (White)',
-        portionGrams: 200,
-        calories: 260,
-        protein: 5.4,
-        carbohydrates: 56.4,
-        fat: 0.6,
-        fiber: 0.8,
-        confidence: 'High Confidence',
-      ),
-      FoodItemDetected(
-        id: 'off_2',
-        name: 'Grilled Herb Chicken Breast',
-        portionGrams: 150,
-        calories: 248,
-        protein: 46.5,
-        carbohydrates: 0.0,
-        fat: 5.4,
-        fiber: 0.0,
-        confidence: 'High Confidence',
-      ),
-      FoodItemDetected(
-        id: 'off_3',
-        name: 'Boiled Egg',
-        portionGrams: 50,
-        calories: 72,
-        protein: 6.3,
-        carbohydrates: 0.4,
-        fat: 4.8,
-        fiber: 0.0,
-        confidence: 'High Confidence',
-      ),
-      FoodItemDetected(
-        id: 'off_4',
-        name: 'Mixed Garden Greens & Veggies',
-        portionGrams: 100,
-        calories: 45,
-        protein: 2.2,
-        carbohydrates: 8.5,
-        fat: 0.4,
-        fiber: 3.2,
-        confidence: 'Estimated from Photo',
-      ),
-    ];
-
-    return {
-      'items': defaultFoods,
-      'notes': 'Portion estimates are calculated using standard visual density models. You can adjust portions or food types below.',
-    };
-  }
 
   // ---------------- GENERAL AI ASSISTANT / CHAT ----------------
   Future<String> askAi(String prompt, {List<GeminiMessage>? history}) async {
@@ -372,53 +224,47 @@ GUIDELINES:
     return await askAi(prompt);
   }
 
-  // ---------------- FITNESS WORKOUT PLANNER AI ----------------
-  Future<String> askFitnessAi({
+  // ---------------- STRICT GOALS & HABITS AI COACH ----------------
+  Future<String> askGoalsAi({
     required String query,
-    required double currentWeight,
-    required double targetWeight,
-    required String goal,
-    required String equipment,
-    List<WorkoutDayPlan>? weeklyPlan,
+    required List<Map<String, dynamic>> activeGoals,
   }) async {
     final prompt = '''
-You are the Titan Strength & Hypertrophy AI Coach.
-User Profile:
-- Current Weight: ${currentWeight}kg | Target Weight: ${targetWeight}kg
-- Primary Fitness Goal: $goal
-- Available Equipment: $equipment
-${weeklyPlan != null ? "- Current 7-Day Plan Overview: ${weeklyPlan.map((d) => "${d.dayName}: ${d.workoutName} (${d.status.label})").join(', ')}" : ""}
-
-User Request: "$query"
-
-Provide a high-performance, structured response with exercise names, sets, rep ranges, rest periods, and warm-up cues. Keep it actionable and concise.
-''';
-
-    return await askAi(prompt);
-  }
-
-  // ---------------- COMBINED FITNESS + FINANCE AI ----------------
-  Future<String> askCombinedAi({
-    required String query,
-    required double monthlyBudget,
-    required double currentDebited,
-    required double currentWeight,
-    required String goal,
-  }) async {
-    final prompt = '''
-You are the Titan Life-Management Strategist combining Fitness Nutrition and Personal Finance.
-User Context:
-- Monthly Budget: ₹${monthlyBudget.toStringAsFixed(0)} (Spent so far: ₹${currentDebited.toStringAsFixed(0)})
-- Current Weight: ${currentWeight}kg | Goal: $goal
+You are the Titan Discipline & Strict Goals Coach.
+User Active Goals Context:
+${activeGoals.map((g) => "- ${g['title']}: Streak ${g['currentStreak']} days (Target: ${g['targetDays']} days)").join('\n')}
 
 User Request: "$query"
 
 Guidelines:
-- Provide high-protein, budget-friendly meal ideas (e.g. eggs, lentils/dal, paneer, tofu, peanut butter, oats).
-- Provide cost estimates per meal and monthly grocery optimization tips.
+1. Provide actionable habit-retention strategies, cognitive framing techniques, and friction-reduction cues.
+2. Emphasize consistency, accountability, and practical step-by-step systems.
+3. Keep it motivating, structured, and concise with clean Markdown.
+''';
+    return await askAi(prompt);
+  }
+
+  // ---------------- GROWTH STRATEGY & SYNERGY AI ----------------
+  Future<String> askGrowthAi({
+    required String query,
+    required double monthlyBudget,
+    required double currentDebited,
+    required int studyMinutesToday,
+    required int completedTopics,
+  }) async {
+    final prompt = '''
+You are the Titan Growth & Synergy Coach integrating Personal Finance, Academic Study, English Mastery, and Strict Habit Discipline.
+User Context:
+- Monthly Budget: ₹${monthlyBudget.toStringAsFixed(0)} (Spent so far: ₹${currentDebited.toStringAsFixed(0)})
+- Today's Study Time: $studyMinutesToday minutes | Topics Mastered: $completedTopics
+
+User Request: "$query"
+
+Guidelines:
+- Provide structured, practical advice connecting discipline, learning efficiency, and financial optimization.
+- Give concrete routines, time blocks, and milestone tips.
 - Keep calculations deterministic and advice realistic.
 ''';
-
     return await askAi(prompt);
   }
 
@@ -435,7 +281,6 @@ Guidelines:
    • Applying the **50/30/20 Rule** (50% Needs, 30% Wants, 20% Savings) ensures you maintain a positive cash surplus.
 
 2. **Potentially Reducible Outflows**:
-   • **Food Delivery & Dining Out**: Consolidating meal prep 3 days a week can potentially recover **₹1,200–₹1,800/month**.
    • **Recurring Subscriptions**: Review memberships or streaming platforms not used in the last 14 days.
    • **Impulse Micro-Transactions**: Set a 24-hour waiting rule for non-essential purchases above ₹1,000.
 
@@ -444,57 +289,61 @@ Guidelines:
 ''';
     }
 
-    if (q.contains('workout') || q.contains('gym') || q.contains('split') || q.contains('muscle') || q.contains('chest') || q.contains('back')) {
+    if (q.contains('goal') || q.contains('habit') || q.contains('discipline') || q.contains('streak')) {
       return '''
-🏋️ **Titan Hypertrophy Training Directive**
+🎯 **Titan Strict Habit Discipline Directive**
 
-1. **Volume & Progressive Overload**:
-   • Train each major muscle group **2× per week** with 10–16 challenging weekly sets.
-   • Strive to add 1 rep or 1–2.5 kg every week while maintaining pristine form.
+1. **The 2-Minute Rule**:
+   • Reduce friction for habit initiation. Always begin the first 2 minutes without hesitation.
 
-2. **Recommended 7-Day Hypertrophy Split**:
-   • **Monday**: Chest & Triceps (Push Heavy)
-   • **Tuesday**: Back & Biceps (Pull Heavy)
-   • **Wednesday**: Shoulders & Core (3D Delts)
-   • **Thursday**: Quads & Calves (Leg Power)
-   • **Friday**: Arms Super-Set Blast
-   • **Saturday**: Hamstrings, Glutes & HIIT
-   • **Sunday**: Active Recovery & Fascial Mobility
+2. **Never Miss Twice**:
+   • If a day is interrupted, enforce minimum baseline effort rather than completely breaking the chain.
 
-3. **Rest & Recovery Cadence**:
-   • Rest 60–90 seconds between isolation movements; 2–3 minutes for heavy compound lifts (Squat, Deadlift, Bench).
+3. **Accountability & Tracking**:
+   • Review your active strict goals every morning to reinforce cognitive commitment.
 ''';
     }
 
-    if (q.contains('diet') || q.contains('protein') || q.contains('food') || q.contains('calorie') || q.contains('meal')) {
+    if (q.contains('study') || q.contains('exam') || q.contains('focus') || q.contains('revision') || q.contains('learn')) {
       return '''
-🥗 **Titan High-Protein Nutrition Blueprint**
+📚 **Titan Academic Mastery Framework**
 
-1. **Daily Protein Standard**:
-   • Target **1.6g–2.2g of protein per kg of bodyweight** (e.g. 70kg athlete = 120g–140g protein daily).
-   • Space protein across 3–4 meals (30g–40g per meal) to optimize Muscle Protein Synthesis (MPS).
+1. **Pomodoro Focus Intervals**:
+   • 45 minutes deep single-task focus + 10 minutes restorative break.
 
-2. **Budget-Friendly Protein Powerhouses**:
-   • 🥚 **Whole Eggs & Egg Whites**: 6g protein per egg (~₹7/egg).
-   • 🧀 **Paneer & Tofu**: 18g–20g protein per 100g.
-   • 🍲 **Dal & Lentils**: Rich in slow-burning complex carbs and fiber.
-   • 🥛 **Greek Yogurt / Curd & Sattu**: Natural high-protein snacks.
+2. **Active Recall & Spaced Repetition**:
+   • Test yourself with flashcards or write summary points from memory after every topic.
 
-3. **Hydration & Micronutrients**:
-   • Drink 3.5–4.0 liters of water daily to support digestion, joint lubrication, and strength.
+3. **Weekly Syllabus Pacing**:
+   • Block complex topics during your peak morning energy window.
+''';
+    }
+
+    if (q.contains('english') || q.contains('speak') || q.contains('vocab') || q.contains('grammar') || q.contains('interview')) {
+      return '''
+🇬🇧 **Titan English Fluency Accelerator**
+
+1. **Daily Speaking Practice**:
+   • Practice 10–15 minutes of aloud speech drills to build neural muscle memory.
+
+2. **Linguistic Precision**:
+   • Replace basic filler words with descriptive, concise vocabulary.
+
+3. **Structural Clarity**:
+   • Use the STAR method (Situation, Task, Action, Result) when framing professional responses.
 ''';
     }
 
     return '''
-⚡ **Titan AI Growth Coach**
+⚡ **Titan AI Life-Optimization Coach**
 
 I am ready to optimize your performance across:
-• 🏋️ **Fitness & 7-Day Gym Splits**: Progressive overload and routine adaptation.
-• 🥗 **Food & Nutrition Analysis**: Estimating macros and hitting protein targets.
-• 💰 **Finance & Budget Management**: Cutting unnecessary leaks and maximizing savings.
-• 🛡️ **Daily Habit Discipline**: Keeping unbreakable daily streaks.
+• 🎯 **Strict Goals & Habits**: Unbreakable streak discipline and consistency.
+• 💰 **Finance & Budget Management**: Expense tracking, category analysis, and savings.
+• 📚 **Study & Academics**: Pomodoro focus sprints and syllabus mastery.
+• 🇬🇧 **English Mastery**: Real-time speaking practice, vocabulary, and grammar.
 
-*Ask me anything specific about your workouts, expenses, or diet!*
+*Ask me anything specific about your goals, study schedule, English drills, or budget!*
 ''';
   }
 

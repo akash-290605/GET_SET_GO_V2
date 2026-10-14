@@ -268,7 +268,7 @@ class _AccountCloudModalState extends State<AccountCloudModal> {
                         ),
                         const SizedBox(height: 6),
                         const Text(
-                          'Export your entire fitness, finance, and nutrition history as structured JSON.',
+                          'Export your entire goals, finance, study, and English mastery history as structured JSON.',
                           style: TextStyle(fontSize: 11.5, color: AppColors.textMuted),
                         ),
                         if (_backupMessage != null) ...[
@@ -286,21 +286,23 @@ class _AccountCloudModalState extends State<AccountCloudModal> {
                                 ? null
                                 : () async {
                                     setState(() => _isBackingUp = true);
+                                    final goals = await DBHelper.instance.getGoals();
                                     final expenses = await DBHelper.instance.getExpenses();
-                                    final meals = await DBHelper.instance.getMeals();
-                                    final workouts = await DBHelper.instance.getWorkoutPlans();
+                                    final studyLogs = await DBHelper.instance.getStudyLogs();
+                                    final speakingRecords = await DBHelper.instance.fetchSpeakingRecords();
 
                                     final backupJson = jsonEncode({
                                       'exportDate': DateTime.now().toIso8601String(),
                                       'profile': {
                                         'name': ProfileService.instance.userName,
-                                        'weight': ProfileService.instance.weightKg,
-                                        'targetWeight': ProfileService.instance.targetWeightKg,
+                                        'age': ProfileService.instance.age,
                                         'budget': ProfileService.instance.monthlyBudgetCap,
+                                        'strictGoalTitle': ProfileService.instance.strictGoalTitle,
                                       },
+                                      'goals': goals,
                                       'expenses': expenses,
-                                      'meals': meals.map((m) => m.toMap()).toList(),
-                                      'workouts': workouts.map((w) => w.toMap()).toList(),
+                                      'studyLogs': studyLogs,
+                                      'speakingRecords': speakingRecords.map((s) => s.toMap()).toList(),
                                     });
 
                                     await Clipboard.setData(ClipboardData(text: backupJson));

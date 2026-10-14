@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../db_helper.dart';
-import '../models/food_models.dart';
 import '../services/gemini_service.dart';
 import '../services/profile_service.dart';
 import '../services/theme_service.dart';
@@ -33,23 +32,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) setState(() {});
   }
 
-  // Edit Profile Modal
   void _openProfileEditor() {
     final nameCtrl = TextEditingController(text: ProfileService.instance.userName);
     final ageCtrl = TextEditingController(text: ProfileService.instance.age.toString());
-    final heightCtrl = TextEditingController(text: ProfileService.instance.heightCm.toStringAsFixed(0));
-    final weightCtrl = TextEditingController(text: ProfileService.instance.weightKg.toStringAsFixed(1));
-    final targetWeightCtrl = TextEditingController(text: ProfileService.instance.targetWeightKg.toStringAsFixed(1));
-    String goal = ProfileService.instance.fitnessGoal;
-    String activity = ProfileService.instance.activityLevel;
-    String equip = ProfileService.instance.availableEquipment;
+    String gender = ProfileService.instance.gender;
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDlgState) => AlertDialog(
           backgroundColor: Theme.of(context).cardColor,
-          title: const Text('Edit Profile & Body Metrics', style: TextStyle(fontWeight: FontWeight.bold)),
+          title: const Text('Edit User Profile', style: TextStyle(fontWeight: FontWeight.bold)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -59,68 +52,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   decoration: const InputDecoration(labelText: 'Full Name', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: ageCtrl,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Age', border: OutlineInputBorder()),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: heightCtrl,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Height (cm)', border: OutlineInputBorder()),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: weightCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(labelText: 'Current Weight (kg)', border: OutlineInputBorder()),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: targetWeightCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(labelText: 'Target Weight (kg)', border: OutlineInputBorder()),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: goal,
-                  decoration: const InputDecoration(labelText: 'Fitness Goal', border: OutlineInputBorder()),
-                  items: ['Muscle Gain & Hypertrophy', 'Fat Loss & Shred', 'Athletic Endurance', 'Maintenance & Mobility'].map((g) => DropdownMenuItem(value: g, child: Text(g, style: const TextStyle(fontSize: 12.5)))).toList(),
-                  onChanged: (val) {
-                    if (val != null) setDlgState(() => goal = val);
-                  },
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: activity,
-                  decoration: const InputDecoration(labelText: 'Activity Level', border: OutlineInputBorder()),
-                  items: ['Sedentary', 'Lightly Active (1-3 days)', 'Moderately Active (3-5 days)', 'Very Active (6-7 days)'].map((a) => DropdownMenuItem(value: a, child: Text(a, style: const TextStyle(fontSize: 12.5)))).toList(),
-                  onChanged: (val) {
-                    if (val != null) setDlgState(() => activity = val);
-                  },
-                ),
-                const SizedBox(height: 12),
                 TextField(
-                  controller: TextEditingController(text: equip),
-                  decoration: const InputDecoration(labelText: 'Available Equipment', border: OutlineInputBorder()),
-                  onChanged: (v) => equip = v,
+                  controller: ageCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Age', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: gender,
+                  decoration: const InputDecoration(labelText: 'Gender', border: OutlineInputBorder()),
+                  items: ['Male', 'Female', 'Other'].map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                  onChanged: (val) {
+                    if (val != null) setDlgState(() => gender = val);
+                  },
                 ),
               ],
             ),
@@ -136,12 +80,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 await ProfileService.instance.updateProfile(
                   name: nameCtrl.text.trim(),
                   age: int.tryParse(ageCtrl.text),
-                  heightCm: double.tryParse(heightCtrl.text),
-                  weightKg: double.tryParse(weightCtrl.text),
-                  targetWeightKg: double.tryParse(targetWeightCtrl.text),
-                  fitnessGoal: goal,
-                  activityLevel: activity,
-                  availableEquipment: equip,
+                  gender: gender,
                 );
                 if (ctx.mounted) Navigator.pop(ctx);
                 if (mounted) setState(() {});
@@ -154,13 +93,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Edit Strict Goal Protocol Modal
   void _openStrictGoalEditor() {
     final p = ProfileService.instance;
     final titleCtrl = TextEditingController(text: p.strictGoalTitle);
     final stepCtrl = TextEditingController(text: p.dailyStepTarget.toString());
     final activeCtrl = TextEditingController(text: p.dailyActiveTimeMinutesTarget.toString());
-    final weightTargetCtrl = TextEditingController(text: p.targetWeightKg.toStringAsFixed(1));
+    final waterCtrl = TextEditingController(text: p.dailyWaterIntakeMlTarget.toString());
     bool strictMode = p.isStrictMode;
 
     showDialog(
@@ -181,7 +119,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 TextField(
                   controller: titleCtrl,
-                  decoration: const InputDecoration(labelText: 'Goal Headline', border: OutlineInputBorder(), prefixIcon: Icon(Icons.fitness_center)),
+                  decoration: const InputDecoration(labelText: 'Goal Headline', border: OutlineInputBorder(), prefixIcon: Icon(Icons.flag_rounded)),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -197,15 +135,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const SizedBox(height: 12),
                 TextField(
-                  controller: weightTargetCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Target Weight (kg)', border: OutlineInputBorder(), prefixIcon: Icon(Icons.monitor_weight_outlined)),
+                  controller: waterCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Daily Water Target (ml)', border: OutlineInputBorder(), prefixIcon: Icon(Icons.water_drop_outlined)),
                 ),
                 const SizedBox(height: 8),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Strict Discipline Mode', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Enforce daily compliance badges & banners', style: TextStyle(fontSize: 11)),
+                  subtitle: const Text('Zero compromise execution & streak tracking', style: TextStyle(fontSize: 11)),
                   value: strictMode,
                   activeThumbColor: AppColors.primaryGlow,
                   onChanged: (v) => setDlgState(() => strictMode = v),
@@ -221,14 +159,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 final newTitle = titleCtrl.text.trim();
                 final newSteps = int.tryParse(stepCtrl.text.trim()) ?? p.dailyStepTarget;
                 final newActive = int.tryParse(activeCtrl.text.trim()) ?? p.dailyActiveTimeMinutesTarget;
-                final newTargetW = double.tryParse(weightTargetCtrl.text.trim()) ?? p.targetWeightKg;
+                final newWater = int.tryParse(waterCtrl.text.trim()) ?? p.dailyWaterIntakeMlTarget;
 
                 await p.updateStrictGoal(
                   strictGoalTitle: newTitle.isNotEmpty ? newTitle : p.strictGoalTitle,
                   isStrictMode: strictMode,
                   dailyStepTarget: newSteps,
                   dailyActiveTimeMinutesTarget: newActive,
-                  targetWeightKg: newTargetW,
+                  dailyWaterIntakeMlTarget: newWater,
                 );
                 if (ctx.mounted) Navigator.pop(ctx);
                 if (mounted) setState(() {});
@@ -241,7 +179,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Edit Finance Preferences Modal
   void _openFinanceSettings() {
     final currencyCtrl = TextEditingController(text: ProfileService.instance.currencySymbol);
     final budgetCtrl = TextEditingController(text: ProfileService.instance.monthlyBudgetCap.toStringAsFixed(0));
@@ -288,99 +225,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Edit Nutrition Targets Modal
-  void _openNutritionSettings() {
-    final target = ProfileService.instance.nutritionTarget;
-    final calCtrl = TextEditingController(text: target.calorieTarget.toStringAsFixed(0));
-    final proCtrl = TextEditingController(text: target.proteinTargetGrams.toStringAsFixed(0));
-    final carbCtrl = TextEditingController(text: target.carbTargetGrams.toStringAsFixed(0));
-    final fatCtrl = TextEditingController(text: target.fatTargetGrams.toStringAsFixed(0));
-    final fiberCtrl = TextEditingController(text: target.fiberTargetGrams.toStringAsFixed(0));
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Theme.of(context).cardColor,
-        title: const Text('Daily Nutrition Targets', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: calCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Daily Calories (kcal)', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: proCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Protein (g)', border: OutlineInputBorder()),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: carbCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Carbs (g)', border: OutlineInputBorder()),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: fatCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Fats (g)', border: OutlineInputBorder()),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: fiberCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Fiber (g)', border: OutlineInputBorder()),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.accentGreen),
-            onPressed: () async {
-              final newTarget = DailyNutritionTarget(
-                calorieTarget: double.tryParse(calCtrl.text) ?? 2200.0,
-                proteinTargetGrams: double.tryParse(proCtrl.text) ?? 140.0,
-                carbTargetGrams: double.tryParse(carbCtrl.text) ?? 250.0,
-                fatTargetGrams: double.tryParse(fatCtrl.text) ?? 65.0,
-                fiberTargetGrams: double.tryParse(fiberCtrl.text) ?? 30.0,
-              );
-              await ProfileService.instance.updateNutritionTarget(newTarget);
-              if (ctx.mounted) Navigator.pop(ctx);
-              if (mounted) setState(() {});
-            },
-            child: const Text('Save Targets', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Edit Gemini API Key Modal
   void _openGeminiApiKeyDialog() {
     final keyCtrl = TextEditingController(text: GeminiService.instance.customApiKey ?? '');
 
@@ -393,7 +237,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Enter your Gemini API Key for online multimodal food vision and advanced reasoning:', style: TextStyle(fontSize: 12.5)),
+            const Text('Enter your Gemini API Key for advanced AI reasoning across goals, study, and finance:', style: TextStyle(fontSize: 12.5)),
             const SizedBox(height: 12),
             TextField(
               controller: keyCtrl,
@@ -427,23 +271,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Backup / Export Data Dialog
   Future<void> _exportDataDialog() async {
+    final goals = await DBHelper.instance.getGoals();
     final expenses = await DBHelper.instance.getExpenses();
-    final meals = await DBHelper.instance.getMeals();
-    final workouts = await DBHelper.instance.getWorkoutPlans();
+    final studyLogs = await DBHelper.instance.getStudyLogs();
+    final speakingRecords = await DBHelper.instance.fetchSpeakingRecords();
 
     final backupJson = jsonEncode({
       'exportDate': DateTime.now().toIso8601String(),
       'profile': {
         'name': ProfileService.instance.userName,
-        'weight': ProfileService.instance.weightKg,
-        'targetWeight': ProfileService.instance.targetWeightKg,
+        'age': ProfileService.instance.age,
         'budget': ProfileService.instance.monthlyBudgetCap,
+        'strictGoalTitle': ProfileService.instance.strictGoalTitle,
       },
+      'goals': goals,
       'expenses': expenses,
-      'meals': meals.map((m) => m.toMap()).toList(),
-      'workouts': workouts.map((w) => w.toMap()).toList(),
+      'studyLogs': studyLogs,
+      'speakingRecords': speakingRecords.map((s) => s.toMap()).toList(),
     });
 
     await Clipboard.setData(ClipboardData(text: backupJson));
@@ -454,7 +299,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         builder: (ctx) => AlertDialog(
           backgroundColor: Theme.of(context).cardColor,
           title: const Text('Backup Copied to Clipboard', style: TextStyle(fontWeight: FontWeight.bold)),
-          content: const Text('Your entire application data (Profile, Fitness, Nutrition, and Finance logs) has been formatted as JSON and copied to your clipboard.'),
+          content: const Text('Your entire application data (Strict Goals, Finance, Study, and English records) has been formatted as JSON and copied to your clipboard.'),
           actions: [
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx),
@@ -478,8 +323,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
-          // Profile & Body Metrics Section
-          _buildSectionHeader('Profile & Fitness Metrics'),
+          _buildSectionHeader('Profile & Strict Goals Protocol'),
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Column(
@@ -490,7 +334,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: Icon(Icons.person_rounded, color: Colors.white),
                   ),
                   title: Text(profile.userName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('${profile.fitnessGoal} • ${profile.weightKg} kg (Target: ${profile.targetWeightKg} kg)'),
+                  subtitle: Text('Age: ${profile.age} • Gender: ${profile.gender}'),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: _openProfileEditor,
                 ),
@@ -510,7 +354,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Appearance & Theme Mode Section
           _buildSectionHeader('Appearance & Theme'),
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -553,8 +396,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Finance & Nutrition Section
-          _buildSectionHeader('Finance & Nutrition Preferences'),
+          _buildSectionHeader('Finance & Budget Preferences'),
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Column(
@@ -566,20 +408,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: _openFinanceSettings,
                 ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.restaurant_outlined, color: AppColors.accentGreen),
-                  title: const Text('Daily Macro Targets', style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text('${profile.nutritionTarget.calorieTarget.toStringAsFixed(0)} kcal • ${profile.nutritionTarget.proteinTargetGrams.toStringAsFixed(0)}g Protein'),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: _openNutritionSettings,
-                ),
               ],
             ),
           ),
           const SizedBox(height: 16),
 
-          // Study & English Section
           _buildSectionHeader('Study & English Preferences'),
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -613,7 +446,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 16),
 
-          // AI Coach Configuration
           _buildSectionHeader('AI Intelligence & Keys'),
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -627,7 +459,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Data Management & Backup
           _buildSectionHeader('Data Management'),
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

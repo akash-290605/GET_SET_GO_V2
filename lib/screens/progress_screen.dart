@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import '../db_helper.dart';
-import '../models/food_models.dart';
-import '../models/workout_models.dart';
 import '../models/study_english_models.dart';
 import '../services/profile_service.dart';
 import '../services/study_english_service.dart';
@@ -19,15 +17,15 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
   late TabController _tabController;
   bool _isLoading = true;
 
-  List<WorkoutDayPlan> _workoutPlans = [];
-  List<MealRecord> _mealRecords = [];
+  List<Map<String, dynamic>> _goals = [];
+  List<Map<String, dynamic>> _deletedGoals = [];
   List<Map<String, dynamic>> _expenses = [];
   List<Map<String, dynamic>> _studyLogs = [];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _loadAllProgressData();
     ProfileService.instance.addListener(_onProfileChanged);
     StudyEnglishService.instance.addListener(_onProfileChanged);
@@ -48,15 +46,15 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
   Future<void> _loadAllProgressData() async {
     setState(() => _isLoading = true);
     try {
-      final workouts = await DBHelper.instance.getWorkoutPlans();
-      final meals = await DBHelper.instance.getMeals();
+      final goals = await DBHelper.instance.getGoals();
+      final deleted = await DBHelper.instance.getDeletedGoals();
       final expenses = await DBHelper.instance.getExpenses();
       final study = await DBHelper.instance.getStudyLogs();
 
       if (mounted) {
         setState(() {
-          _workoutPlans = workouts;
-          _mealRecords = meals;
+          _goals = goals;
+          _deletedGoals = deleted;
           _expenses = expenses;
           _studyLogs = study;
           _isLoading = false;
@@ -65,44 +63,6 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  void _logWeightDialog() {
-    final currentWeight = ProfileService.instance.weightKg;
-    final weightCtrl = TextEditingController(text: currentWeight.toStringAsFixed(1));
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Theme.of(context).cardColor,
-        title: const Text('Log Today\'s Weight', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: TextField(
-          controller: weightCtrl,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(labelText: 'Weight (kg)', border: OutlineInputBorder(), suffixText: 'kg'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-            onPressed: () async {
-              final w = double.tryParse(weightCtrl.text.trim());
-              if (w != null && w > 0) {
-                await ProfileService.instance.logWeight(w);
-                if (ctx.mounted) {
-                  Navigator.pop(ctx);
-                  setState(() {});
-                }
-              }
-            },
-            child: const Text('Save Log', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -127,8 +87,7 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
           labelColor: AppColors.primaryGlow,
           unselectedLabelColor: theme.hintColor,
           tabs: const [
-            Tab(icon: Icon(Icons.fitness_center_rounded, size: 18), text: 'Fitness'),
-            Tab(icon: Icon(Icons.restaurant_rounded, size: 18), text: 'Nutrition'),
+            Tab(icon: Icon(Icons.flag_rounded, size: 18), text: 'Goals & Discipline'),
             Tab(icon: Icon(Icons.account_balance_wallet_rounded, size: 18), text: 'Finance'),
             Tab(icon: Icon(Icons.school_rounded, size: 18), text: 'Study & Focus'),
             Tab(icon: Icon(Icons.translate_rounded, size: 18), text: 'English Mastery'),
@@ -140,8 +99,7 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
           : TabBarView(
               controller: _tabController,
               children: [
-                _buildFitnessProgressTab(),
-                _buildNutritionProgressTab(),
+                _buildGoalsProgressTab(),
                 _buildFinanceProgressTab(),
                 _buildStudyProgressTab(),
                 _buildEnglishProgressTab(),
@@ -150,13 +108,14 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
     );
   }
 
-  // ================= 1. FITNESS PROGRESS =================
-  Widget _buildFitnessProgressTab() {
+  Widget _buildGoalsProgressTab() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final profile = ProfileService.instance;
-    final completedWorkouts = _workoutPlans.where((w) => w.status == WorkoutStatus.completed).length;
-    final totalWorkouts = _workoutPlans.where((w) => w.status != WorkoutStatus.restDay).length;
+    final maxStreak = _goals.fold<int>(0, (prev, g) {
+      final s = (g['currentStreak'] as num?)?.toInt() ?? 0;
+      return s > prev ? s : prev;
+    });
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -165,115 +124,103 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
         children: [
           Row(
             children: [
-              _buildProgressMetricCard('Current Weight', '${profile.weightKg} kg', 'Target: ${profile.targetWeightKg} kg', AppColors.primaryGlow),
+              _buildProgressMetricCard('Active Strict Goals', '${_goals.length}', 'Unbreakable streak', AppColors.accentRose),
               const SizedBox(width: 10),
-              _buildProgressMetricCard('Weekly Split', '$completedWorkouts / $totalWorkouts Done', '${((totalWorkouts > 0 ? completedWorkouts / totalWorkouts : 0) * 100).toStringAsFixed(0)}% completion', AppColors.accentGreen),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Weight Progression Card
-          GlassCard(
-            borderColor: AppColors.primaryGlow.withValues(alpha: 0.25),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Weight Progression History', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark))),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary.withValues(alpha: 0.2),
-                        foregroundColor: AppColors.primaryGlow,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      ),
-                      onPressed: _logWeightDialog,
-                      icon: const Icon(Icons.add_rounded, size: 16),
-                      label: const Text('Log Weight', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                ...profile.weightHistory.reversed.take(4).map((entry) {
-                  final date = DateTime.tryParse(entry['date'] ?? '') ?? DateTime.now();
-                  final w = (entry['weight'] as num?)?.toDouble() ?? 0.0;
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('${date.day}/${date.month}/${date.year}', style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark))),
-                        Text('$w kg', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primaryGlow)),
-                      ],
-                    ),
-                  );
-                }),
-              ],
-            ),
-          ),
-          const SizedBox(height: 40),
-        ],
-      ),
-    );
-  }
-
-  // ================= 2. NUTRITION PROGRESS =================
-  Widget _buildNutritionProgressTab() {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final target = ProfileService.instance.nutritionTarget;
-
-    double totalCal = 0;
-    double totalProt = 0;
-    double totalCarbs = 0;
-    double totalFat = 0;
-    for (var m in _mealRecords) {
-      totalCal += m.totalCalories;
-      totalProt += m.totalProtein;
-      totalCarbs += m.totalCarbs;
-      totalFat += m.totalFat;
-    }
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              _buildProgressMetricCard('Total Meals Logged', '${_mealRecords.length}', 'Lifetime logs', AppColors.accentGreen),
-              const SizedBox(width: 10),
-              _buildProgressMetricCard('Protein Target', '${target.proteinTargetGrams.toStringAsFixed(0)}g / day', 'Lean muscle goal', AppColors.accentAmber),
+              _buildProgressMetricCard('Best Streak', '$maxStreak Days', 'Consecutive days', AppColors.accentAmber),
             ],
           ),
           const SizedBox(height: 14),
 
           GlassCard(
-            borderColor: AppColors.accentGreen.withValues(alpha: 0.25),
+            borderColor: AppColors.accentRose.withValues(alpha: 0.25),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Aggregated Nutrition Summary', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark))),
+                Text('Daily Discipline Protocol Execution', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark))),
                 const SizedBox(height: 12),
-                _buildMacroBar('Total Estimated Energy', '~${totalCal.toStringAsFixed(0)} kcal', 1.0, AppColors.accentGreen),
-                const SizedBox(height: 8),
-                _buildMacroBar('Total Protein Intake', '~${totalProt.toStringAsFixed(0)}g', 0.8, AppColors.primaryGlow),
-                const SizedBox(height: 8),
-                _buildMacroBar('Total Carbohydrates', '~${totalCarbs.toStringAsFixed(0)}g', 0.65, AppColors.accentAmber),
-                const SizedBox(height: 8),
-                _buildMacroBar('Total Healthy Fats', '~${totalFat.toStringAsFixed(0)}g', 0.5, AppColors.secondary),
+                _buildMacroBar('Daily Step Target', '${profile.todaySteps} / ${profile.dailyStepTarget} steps', (profile.dailyStepTarget > 0 ? profile.todaySteps / profile.dailyStepTarget : 0.0), AppColors.accentBlue),
+                const SizedBox(height: 10),
+                _buildMacroBar('Active Time Target', '${profile.todayActiveTimeMinutes} / ${profile.dailyActiveTimeMinutesTarget} mins', (profile.dailyActiveTimeMinutesTarget > 0 ? profile.todayActiveTimeMinutes / profile.dailyActiveTimeMinutesTarget : 0.0), AppColors.purple),
+                const SizedBox(height: 10),
+                _buildMacroBar('Hydration Target', '${(profile.todayWaterIntakeMl / 1000).toStringAsFixed(2)} / ${(profile.dailyWaterIntakeMlTarget / 1000).toStringAsFixed(1)} L', (profile.dailyWaterIntakeMlTarget > 0 ? profile.todayWaterIntakeMl / profile.dailyWaterIntakeMlTarget : 0.0), AppColors.secondary),
               ],
             ),
           ),
+          const SizedBox(height: 14),
+
+          if (_goals.isNotEmpty)
+            GlassCard(
+              borderColor: AppColors.primaryGlow.withValues(alpha: 0.25),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Active Commitments', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark))),
+                      Text('${_goals.length} ongoing', style: TextStyle(fontSize: 12, color: AppColors.textSecondary(isDark))),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ..._goals.map((g) {
+                    final title = g['title'] ?? 'Goal';
+                    final streak = g['currentStreak'] ?? 0;
+                    final target = g['targetDays'] ?? 30;
+                    final progress = target > 0 ? (streak / target).clamp(0.0, 1.0) : 0.0;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _buildMacroBar(title, '$streak / $target days', progress, AppColors.accentRose),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          const SizedBox(height: 14),
+
+          if (_deletedGoals.isNotEmpty)
+            GlassCard(
+              borderColor: AppColors.accentRose.withValues(alpha: 0.35),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.sentiment_very_dissatisfied_rounded, color: AppColors.accentRose, size: 18),
+                      const SizedBox(width: 8),
+                      Text('Accountability Archive (${_deletedGoals.length} Apologies)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary(isDark))),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text('Failed commitments and formal handwritten apologies submitted before deletion.', style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary(isDark))),
+                  const SizedBox(height: 10),
+                  ..._deletedGoals.take(3).map((dg) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.accentRose.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.accentRose.withValues(alpha: 0.2)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(dg['title'] ?? 'Deleted Goal', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.accentRose)),
+                          const SizedBox(height: 3),
+                          Text(dg['apologyLetter'] ?? '', style: TextStyle(fontSize: 11.5, fontStyle: FontStyle.italic, color: AppColors.textPrimary(isDark)), maxLines: 2, overflow: TextOverflow.ellipsis),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
           const SizedBox(height: 40),
         ],
       ),
     );
   }
 
-  // ================= 3. FINANCE PROGRESS =================
   Widget _buildFinanceProgressTab() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -325,7 +272,6 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
     );
   }
 
-  // ================= 4. STUDY PROGRESS =================
   Widget _buildStudyProgressTab() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -380,7 +326,7 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
                   ..._studyLogs.take(5).map((log) {
                     final subject = log['subject'] ?? 'General';
                     final topic = log['topic'] ?? '';
-                    final duration = log['duration_minutes'] ?? 0;
+                    final duration = log['timeSpent'] ?? '30 mins';
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       child: Row(
@@ -392,7 +338,7 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
                                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary(isDark)),
                                 overflow: TextOverflow.ellipsis),
                           ),
-                          Text('$duration min', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.accentAmber)),
+                          Text('$duration', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.accentAmber)),
                         ],
                       ),
                     );
@@ -406,7 +352,6 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
     );
   }
 
-  // ================= 5. ENGLISH PROGRESS =================
   Widget _buildEnglishProgressTab() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;

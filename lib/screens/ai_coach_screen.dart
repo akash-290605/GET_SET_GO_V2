@@ -28,11 +28,11 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
     'Compare my spending against my monthly budget cap',
   ];
 
-  final List<String> _quickFitnessPrompts = [
-    'Create a 30-minute high-intensity workout',
-    'Adjust today\'s workout for home (no equipment)',
-    'Make today\'s workout easier with higher reps',
-    'Which muscle groups need more recovery this week?',
+  final List<String> _quickGoalsPrompts = [
+    'How do I maintain my streak when feeling exhausted?',
+    'Design a 30-day strict habit implementation system',
+    'How do I overcome temptation to break my daily goals?',
+    'What is the cognitive psychology of the never-miss-twice rule?',
   ];
 
   final List<String> _quickStudyPrompts = [
@@ -49,10 +49,10 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
     'Explain the difference between Present Perfect and Past Simple',
   ];
 
-  final List<String> _quickCombinedPrompts = [
-    'Suggest affordable high-protein grocery options for my fitness goal',
-    'Estimate the monthly financial cost of my fitness routine',
-    'How can I balance 2 hours of study, 1 hour workout, and stay under budget?',
+  final List<String> _quickSynergyPrompts = [
+    'How can I balance 2 hours of study and stay disciplined on budget?',
+    'Design a full-day schedule balancing finances, learning, and strict habits',
+    'How does financial discipline reinforce academic focus and consistency?',
   ];
 
   @override
@@ -61,7 +61,7 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
     _domainTabController = TabController(length: 5, vsync: this);
     _messages.add(
       _ChatMessage(
-        text: 'Hello ${ProfileService.instance.userName}! I am your GET SET GO AI Life & Performance Coach.\n\nI analyze your actual fitness, finance, nutrition, study, and English learning telemetry to give you personalized, actionable advice.',
+        text: 'Hello ${ProfileService.instance.userName}! I am your GET SET GO AI Life & Performance Coach.\n\nI analyze your actual Strict Goals & Habits, Financial ledger, Study logs, and English learning progress to give you personalized, actionable advice.',
         isUser: false,
         domain: 'general',
         timestamp: DateTime.now(),
@@ -99,13 +99,13 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
       if (activeDomainIndex == 0) {
         domain = 'finance';
       } else if (activeDomainIndex == 1) {
-        domain = 'fitness';
+        domain = 'goals';
       } else if (activeDomainIndex == 2) {
         domain = 'study';
       } else if (activeDomainIndex == 3) {
         domain = 'english';
       } else {
-        domain = 'combined';
+        domain = 'synergy';
       }
     }
 
@@ -115,14 +115,14 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
       _isLoading = true;
       if (domain == 'finance') {
         _loadingMessage = 'Analyzing your actual transactions & spending patterns...';
-      } else if (domain == 'fitness') {
-        _loadingMessage = 'Reviewing your workout split, goals & muscle recovery...';
+      } else if (domain == 'goals') {
+        _loadingMessage = 'Synthesizing discipline protocols & streak momentum...';
       } else if (domain == 'study') {
         _loadingMessage = 'Synthesizing study curriculum & focus intervals...';
       } else if (domain == 'english') {
         _loadingMessage = 'Preparing linguistic feedback & phrasing suggestions...';
       } else {
-        _loadingMessage = 'Synthesizing finance, fitness & productivity synergy...';
+        _loadingMessage = 'Synthesizing finance, study & discipline synergy...';
       }
     });
     _scrollToBottom();
@@ -134,15 +134,11 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
       if (domain == 'finance') {
         final expenses = await DBHelper.instance.getExpenses();
         aiResponse = await GeminiService.instance.askFinanceQuestion(cleanQuery, expenses);
-      } else if (domain == 'fitness') {
-        final workouts = await DBHelper.instance.getWorkoutPlans();
-        aiResponse = await GeminiService.instance.askFitnessAi(
+      } else if (domain == 'goals') {
+        final goals = await DBHelper.instance.getGoals();
+        aiResponse = await GeminiService.instance.askGoalsAi(
           query: cleanQuery,
-          currentWeight: profile.weightKg,
-          targetWeight: profile.targetWeightKg,
-          goal: profile.fitnessGoal,
-          equipment: profile.availableEquipment,
-          weeklyPlan: workouts,
+          activeGoals: goals,
         );
       } else if (domain == 'study') {
         final studyService = StudyEnglishService.instance;
@@ -153,7 +149,7 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
   2. **Active Recall**: Immediately after reading, write down 3 key principles without looking at notes.
   3. **Current Curriculum Status**: You have **${studyService.totalCompletedTopics} completed topics** and **${studyService.totalPendingTopics} pending topics**.
 
-💡 **Pro-Tip**: Schedule this session in your **7-Day Study Planner** tab to maintain your **${studyService.studyStreakDays}-day streak**!''';
+💡 **Pro-Tip**: Schedule this session in your **Study & Focus** module to maintain your **${studyService.studyStreakDays}-day streak**!''';
       } else if (domain == 'english') {
         aiResponse = '''🇬🇧 **English Fluency & Communication Coaching**
 
@@ -165,13 +161,16 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
 ⚡ **Next Action**: Head over to the **AI Speaking & STT** module to record a real-time pronunciation drill!''';
       } else {
         final expenses = await DBHelper.instance.getExpenses();
-        final currentDebited = expenses.where((t) => t['is_income'] != 1 && t['is_income'] != true).fold(0.0, (s, t) => s + ((t['amount'] as num?)?.toDouble() ?? 0.0));
-        aiResponse = await GeminiService.instance.askCombinedAi(
+        final currentDebited = expenses
+            .where((t) => t['is_income'] != 1 && t['is_income'] != true && t['isCredit'] != 1)
+            .fold(0.0, (s, t) => s + ((t['amount'] as num?)?.toDouble() ?? 0.0));
+        final studyService = StudyEnglishService.instance;
+        aiResponse = await GeminiService.instance.askGrowthAi(
           query: cleanQuery,
           monthlyBudget: profile.monthlyBudgetCap,
           currentDebited: currentDebited,
-          currentWeight: profile.weightKg,
-          goal: profile.fitnessGoal,
+          studyMinutesToday: 45,
+          completedTopics: studyService.totalCompletedTopics,
         );
       }
 
@@ -223,16 +222,15 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
           unselectedLabelColor: theme.hintColor,
           tabs: const [
             Tab(icon: Icon(Icons.account_balance_wallet_rounded, size: 16), text: 'Finance AI'),
-            Tab(icon: Icon(Icons.fitness_center_rounded, size: 16), text: 'Fitness AI'),
+            Tab(icon: Icon(Icons.flag_rounded, size: 16), text: 'Strict Goals AI'),
             Tab(icon: Icon(Icons.school_rounded, size: 16), text: 'Study AI'),
             Tab(icon: Icon(Icons.translate_rounded, size: 16), text: 'English AI'),
-            Tab(icon: Icon(Icons.auto_awesome_rounded, size: 16), text: 'Combined Synergy'),
+            Tab(icon: Icon(Icons.auto_awesome_rounded, size: 16), text: 'Life Synergy'),
           ],
         ),
       ),
       body: Column(
         children: [
-          // Quick Prompts Carousel based on active tab
           AnimatedBuilder(
             animation: _domainTabController,
             builder: (context, _) {
@@ -240,16 +238,16 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
               List<String> prompts = _quickFinancePrompts;
               Color chipColor = AppColors.secondary;
               if (idx == 1) {
-                prompts = _quickFitnessPrompts;
-                chipColor = AppColors.primaryGlow;
+                prompts = _quickGoalsPrompts;
+                chipColor = AppColors.accentRose;
               } else if (idx == 2) {
                 prompts = _quickStudyPrompts;
                 chipColor = AppColors.accentAmber;
               } else if (idx == 3) {
                 prompts = _quickEnglishPrompts;
-                chipColor = AppColors.accentRose;
+                chipColor = AppColors.primaryGlow;
               } else if (idx == 4) {
-                prompts = _quickCombinedPrompts;
+                prompts = _quickSynergyPrompts;
                 chipColor = AppColors.accentGreen;
               }
 
@@ -279,7 +277,6 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
             },
           ),
 
-          // Message Thread
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
@@ -292,51 +289,60 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
             ),
           ),
 
-          // Loading Indicator
           if (_isLoading)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               alignment: Alignment.centerLeft,
               child: Row(
                 children: [
-                  const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                  const SizedBox(width: 10),
-                  Text(_loadingMessage, style: TextStyle(fontSize: 12, color: theme.hintColor, fontStyle: FontStyle.italic)),
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryGlow),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _loadingMessage,
+                    style: TextStyle(fontSize: 12, color: theme.hintColor, fontStyle: FontStyle.italic),
+                  ),
                 ],
               ),
             ),
 
-          // Input Bar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: theme.cardColor,
-              border: Border(top: BorderSide(color: theme.dividerColor.withValues(alpha: 0.12))),
+              border: Border(top: BorderSide(color: theme.dividerColor.withValues(alpha: 0.1))),
             ),
-            child: SafeArea(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _queryController,
-                      decoration: const InputDecoration(
-                        hintText: 'Ask AI Coach anything across Fitness, Food, Finance, Study...',
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      ),
-                      onSubmitted: (v) => _handleSendMessage(v),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _queryController,
+                    minLines: 1,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      hintText: 'Ask about goals, study schedule, English, or budget...',
+                      hintStyle: TextStyle(fontSize: 13, color: theme.hintColor),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                      filled: true,
+                      fillColor: theme.colorScheme.surface,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     ),
+                    onSubmitted: (v) => _handleSendMessage(v),
                   ),
-                  IconButton(
-                    style: IconButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                    ),
-                    icon: const Icon(Icons.send_rounded, size: 18),
-                    onPressed: () => _handleSendMessage(_queryController.text),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppColors.primaryGlow,
+                    foregroundColor: Colors.black,
                   ),
-                ],
-              ),
+                  icon: const Icon(Icons.send_rounded, size: 18),
+                  onPressed: () => _handleSendMessage(_queryController.text),
+                ),
+              ],
             ),
           ),
         ],
@@ -346,51 +352,43 @@ class _AiCoachScreenState extends State<AiCoachScreen> with SingleTickerProvider
 
   Widget _buildMessageBubble(_ChatMessage msg) {
     final theme = Theme.of(context);
-    final isUser = msg.isUser;
+    final isDark = theme.brightness == Brightness.dark;
 
     return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      alignment: msg.isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.85),
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: isUser
+          color: msg.isUser
               ? AppColors.primary
-              : (msg.isError ? AppColors.accentRose.withValues(alpha: 0.15) : theme.cardColor),
-          borderRadius: BorderRadius.circular(16).copyWith(
-            bottomRight: isUser ? const Radius.circular(2) : const Radius.circular(16),
-            bottomLeft: !isUser ? const Radius.circular(2) : const Radius.circular(16),
+              : (msg.isError
+                  ? AppColors.accentRose.withValues(alpha: 0.15)
+                  : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9))),
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(16),
+            topRight: const Radius.circular(16),
+            bottomLeft: Radius.circular(msg.isUser ? 16 : 4),
+            bottomRight: Radius.circular(msg.isUser ? 4 : 16),
           ),
-          border: !isUser ? Border.all(color: theme.dividerColor.withValues(alpha: 0.15)) : null,
+          border: msg.isUser
+              ? null
+              : Border.all(
+                  color: msg.isError
+                      ? AppColors.accentRose
+                      : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (!isUser) ...[
-              const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.auto_awesome_rounded, size: 14, color: AppColors.accentAmber),
-                  SizedBox(width: 4),
-                  Text(
-                    'GET SET GO AI',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.accentAmber, letterSpacing: 1),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-            ],
-            Text(
-              msg.text,
-              style: TextStyle(
-                fontSize: 13.5,
-                height: 1.4,
-                color: isUser ? Colors.white : (msg.isError ? AppColors.accentRose : null),
-                fontWeight: isUser ? FontWeight.w500 : FontWeight.normal,
-              ),
-            ),
-          ],
+        child: SelectableText(
+          msg.text,
+          style: TextStyle(
+            fontSize: 13,
+            height: 1.45,
+            color: msg.isUser
+                ? Colors.white
+                : (msg.isError ? AppColors.accentRose : AppColors.textPrimary(isDark)),
+          ),
         ),
       ),
     );
